@@ -1,6 +1,6 @@
 
 {
   "imports": {
-    "youtube_dl": "https://deno.land/x/youtube_dl@0.5.2/mod.ts"
+    "youtube_dl": "https://deno.land/x/youtube_dl@0.7.2/mod.ts"
   }
 }

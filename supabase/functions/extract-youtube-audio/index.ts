@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { download } from "youtube_dl";
+import { YoutubeDownloader } from "youtube_dl";
 
 // Configure CORS headers for cross-origin requests
 const corsHeaders = {
@@ -43,14 +43,15 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Check if 'youtube_audio' bucket exists, if not create it
     try {
-      // Check if 'youtube_audio' bucket exists, if not create it
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
       if (bucketsError) {
         console.error("Error listing buckets:", bucketsError);
       } else {
         const bucketExists = buckets.some(bucket => bucket.name === 'youtube_audio');
         if (!bucketExists) {
+          console.log("Creating 'youtube_audio' bucket...");
           const { error: createBucketError } = await supabase.storage.createBucket('youtube_audio', {
             public: true
           });
@@ -66,34 +67,40 @@ serve(async (req) => {
     }
 
     // Download YouTube video using youtube_dl
-    console.log("Starting YouTube download...");
+    console.log("Initializing YouTube downloader...");
     try {
-      const downloadOptions = {
-        maxRetries: 3,
-        format: "bestaudio[ext=mp3]",
-        maxFileSizeMb: 20,
-        timeout: 60000,
-      };
+      const downloader = new YoutubeDownloader();
       
-      const result = await download(youtubeUrl, downloadOptions);
+      console.log("Getting video info...");
+      const videoInfo = await downloader.getInfo(youtubeUrl);
       
-      if (!result.videoDetails || !result.videoDetails.title || !result.videoDetails.id) {
+      if (!videoInfo || !videoInfo.title || !videoInfo.id) {
         return new Response(
           JSON.stringify({ error: 'Failed to get video details' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      if (!result.audioContent) {
+      const videoTitle = videoInfo.title;
+      const videoId = videoInfo.id;
+      
+      console.log(`Downloading audio for video: ${videoTitle} (${videoId})...`);
+      
+      // Download audio only
+      const result = await downloader.download(youtubeUrl, {
+        format: 'mp3',
+        audioOnly: true,
+        maxDuration: 180  // 3 minutes max
+      });
+      
+      if (!result || !result.audio) {
         return new Response(
           JSON.stringify({ error: 'No audio content found' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      const videoTitle = result.videoDetails.title;
-      const videoId = result.videoDetails.id;
-      const audioData = result.audioContent;
+      const audioData = result.audio;
       
       // Generate a filename
       const filename = `${videoId}-${Date.now()}.mp3`;
@@ -122,8 +129,8 @@ serve(async (req) => {
         
       const audioUrl = publicUrlData.publicUrl;
       
-      // Calculate approximate duration (could be less than 3 minutes if video is shorter)
-      const duration = Math.min(180, result.videoDetails.lengthSeconds || 180); // Maximum 3 minutes
+      // Calculate approximate duration
+      const duration = Math.min(180, videoInfo.duration || 180); // Maximum 3 minutes
       
       // Generate random waveform data for visualization
       const waveform = Array.from(
