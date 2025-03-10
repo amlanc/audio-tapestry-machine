@@ -1,7 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { YoutubeDownloader } from "youtube_dl";
+import { createClient } from "@supabase/supabase-js";
+import * as ytdl from "ytdl_core";
 
 // Configure CORS headers for cross-origin requests
 const corsHeaders = {
@@ -73,64 +73,48 @@ serve(async (req) => {
     }
 
     try {
-      // Initialize YouTube downloader with configuration
-      console.log("Initializing YouTube downloader...");
-      const downloader = new YoutubeDownloader({
-        maxRetries: 3,
-        cacheDirectory: './cache'
-      });
+      // Extract video ID from YouTube URL
+      console.log("Extracting video ID...");
+      const videoId = ytdl.getVideoID(youtubeUrl);
       
-      // Get video info first
+      if (!videoId) {
+        throw new Error("Could not extract video ID from URL");
+      }
+      
+      console.log(`Video ID: ${videoId}`);
+      
+      // Get video info
       console.log("Getting video info...");
-      const videoInfo = await downloader.getInfo(youtubeUrl).catch(error => {
-        console.error("Error getting video info:", error);
-        throw new Error(`Failed to get video info: ${error.message}`);
-      });
+      const videoInfo = await ytdl.getInfo(videoId);
       
-      if (!videoInfo || !videoInfo.title) {
-        console.error("Failed to get valid video details");
-        return new Response(
-          JSON.stringify({ error: 'Failed to get valid video details' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (!videoInfo || !videoInfo.videoDetails) {
+        throw new Error("Failed to get video details");
       }
       
-      console.log(`Video info received: ${videoInfo.title} (${videoInfo.id || 'unknown id'})`);
+      const videoTitle = videoInfo.videoDetails.title;
+      console.log(`Video title: ${videoTitle}`);
       
-      const videoTitle = videoInfo.title;
-      const videoId = videoInfo.id || `video-${Date.now()}`;
+      // Get audio formats only
+      const audioFormats = ytdl.filterFormats(videoInfo.formats, 'audioonly');
       
-      console.log(`Downloading audio for video: ${videoTitle} (${videoId})...`);
-      
-      // Download audio only with more explicit options
-      const downloadResult = await downloader.download(youtubeUrl, {
-        format: 'mp3',
-        audioOnly: true,
-        maxDuration: 180,  // 3 minutes max
-        quality: 'lowest'  // Use lowest quality to speed up processing
-      }).catch(error => {
-        console.error("Error downloading audio:", error);
-        throw new Error(`Failed to download audio: ${error.message}`);
-      });
-      
-      if (!downloadResult || !downloadResult.audio) {
-        console.error("No audio content found in download result");
-        return new Response(
-          JSON.stringify({ error: 'No audio content found in download result' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
+      if (!audioFormats.length) {
+        throw new Error("No audio formats available");
       }
       
-      const audioData = downloadResult.audio;
+      // Choose the first audio format (usually the best quality)
+      const format = audioFormats[0];
+      console.log(`Selected audio format: ${format.mimeType}, quality: ${format.quality}`);
+      
+      // Download the audio
+      console.log("Downloading audio...");
+      const response = await fetch(format.url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download audio: ${response.statusText}`);
+      }
+      
+      const audioData = await response.arrayBuffer();
       console.log(`Audio data received: ${audioData.byteLength} bytes`);
-      
-      if (audioData.byteLength === 0) {
-        console.error("Empty audio data received");
-        return new Response(
-          JSON.stringify({ error: 'Empty audio data received' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
       
       // Generate a filename with timestamp to avoid conflicts
       const filename = `${videoId}-${Date.now()}.mp3`;
@@ -160,10 +144,10 @@ serve(async (req) => {
       const audioUrl = publicUrlData.publicUrl;
       console.log(`Audio URL: ${audioUrl}`);
       
-      // Calculate approximate duration
-      const duration = Math.min(180, videoInfo.duration || 180); // Maximum 3 minutes
+      // Calculate approximate duration from video info
+      const duration = parseInt(videoInfo.videoDetails.lengthSeconds) || 180; 
       
-      // Generate random waveform data for visualization
+      // Generate random waveform data for visualization (or use actual data if available)
       const waveform = Array.from(
         { length: Math.ceil(duration) }, 
         () => Math.random() * 0.8 + 0.2
@@ -176,7 +160,7 @@ serve(async (req) => {
         .insert({
           name: videoTitle,
           url: audioUrl,
-          duration: Math.floor(duration),
+          duration: Math.min(180, duration), // Cap at 3 minutes
           waveform: waveform
         })
         .select()

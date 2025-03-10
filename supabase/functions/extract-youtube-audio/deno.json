@@ -1,8 +1,8 @@
 
 {
   "imports": {
-    "youtube_dl": "https://deno.land/x/youtube_dl@0.8.0/mod.ts",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1"
+    "ytdl_core": "https://deno.land/x/ytdl_core@v0.1.2/mod.ts",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.2"
   },
   "tasks": {
     "start": "deno run --allow-net --allow-env --allow-read index.ts"
