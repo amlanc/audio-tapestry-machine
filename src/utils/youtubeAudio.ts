@@ -15,14 +15,16 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
     }
     
     // Call the Supabase Edge Function to extract audio
-    const { data, error } = await supabase.functions.invoke('extract-youtube-audio', {
+    const response = await supabase.functions.invoke('extract-youtube-audio', {
       body: { youtubeUrl }
     });
     
-    if (error) {
-      console.error("Error invoking extract-youtube-audio function:", error);
-      throw new Error(`Failed to extract audio: ${error.message}`);
+    if (response.error) {
+      console.error("Error from extract-youtube-audio function:", response.error);
+      throw new Error(`Failed to extract audio: ${response.error.message || response.error}`);
     }
+    
+    const data = response.data;
     
     if (!data || !data.success) {
       const errorMessage = data?.error || "Failed to extract audio from YouTube";

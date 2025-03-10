@@ -46,18 +46,21 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if 'youtube_audio' bucket exists, if not create it
+    // Ensure 'youtube_audio' bucket exists
     try {
       const { data: buckets, error: bucketsError } = await supabase.storage.listBuckets();
+      
       if (bucketsError) {
         console.error("Error listing buckets:", bucketsError);
       } else {
         const bucketExists = buckets.some(bucket => bucket.name === 'youtube_audio');
+        
         if (!bucketExists) {
           console.log("Creating 'youtube_audio' bucket...");
           const { error: createBucketError } = await supabase.storage.createBucket('youtube_audio', {
             public: true
           });
+          
           if (createBucketError) {
             console.error("Error creating bucket:", createBucketError);
           } else {
@@ -70,33 +73,44 @@ serve(async (req) => {
     }
 
     try {
-      // Initialize YouTube downloader
+      // Initialize YouTube downloader with configuration
       console.log("Initializing YouTube downloader...");
-      const downloader = new YoutubeDownloader();
+      const downloader = new YoutubeDownloader({
+        maxRetries: 3,
+        cacheDirectory: './cache'
+      });
       
-      // Get video info
+      // Get video info first
       console.log("Getting video info...");
-      const videoInfo = await downloader.getInfo(youtubeUrl);
-      console.log("Video info received:", videoInfo?.title || "Unknown title");
+      const videoInfo = await downloader.getInfo(youtubeUrl).catch(error => {
+        console.error("Error getting video info:", error);
+        throw new Error(`Failed to get video info: ${error.message}`);
+      });
       
       if (!videoInfo || !videoInfo.title) {
-        console.error("Failed to get video details");
+        console.error("Failed to get valid video details");
         return new Response(
-          JSON.stringify({ error: 'Failed to get video details' }),
+          JSON.stringify({ error: 'Failed to get valid video details' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+      
+      console.log(`Video info received: ${videoInfo.title} (${videoInfo.id || 'unknown id'})`);
       
       const videoTitle = videoInfo.title;
       const videoId = videoInfo.id || `video-${Date.now()}`;
       
       console.log(`Downloading audio for video: ${videoTitle} (${videoId})...`);
       
-      // Download audio only
+      // Download audio only with more explicit options
       const downloadResult = await downloader.download(youtubeUrl, {
         format: 'mp3',
         audioOnly: true,
-        maxDuration: 180  // 3 minutes max
+        maxDuration: 180,  // 3 minutes max
+        quality: 'lowest'  // Use lowest quality to speed up processing
+      }).catch(error => {
+        console.error("Error downloading audio:", error);
+        throw new Error(`Failed to download audio: ${error.message}`);
       });
       
       if (!downloadResult || !downloadResult.audio) {
@@ -110,7 +124,15 @@ serve(async (req) => {
       const audioData = downloadResult.audio;
       console.log(`Audio data received: ${audioData.byteLength} bytes`);
       
-      // Generate a filename
+      if (audioData.byteLength === 0) {
+        console.error("Empty audio data received");
+        return new Response(
+          JSON.stringify({ error: 'Empty audio data received' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Generate a filename with timestamp to avoid conflicts
       const filename = `${videoId}-${Date.now()}.mp3`;
       
       // Upload to Supabase Storage
@@ -184,18 +206,18 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } catch (downloadError) {
-      console.error("Error downloading from YouTube:", downloadError);
+      console.error("Error processing YouTube URL:", downloadError);
       return new Response(
         JSON.stringify({ 
-          error: `Failed to download YouTube audio: ${downloadError.message || 'Unknown error'}` 
+          error: `Failed to process YouTube audio: ${downloadError.message || 'Unknown error'}` 
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
   } catch (error) {
-    console.error("Error processing YouTube URL:", error);
+    console.error("Unexpected error processing request:", error);
     return new Response(
-      JSON.stringify({ error: error.message || 'An unknown error occurred' }),
+      JSON.stringify({ error: error.message || 'An unexpected error occurred' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
