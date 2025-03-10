@@ -1,3 +1,4 @@
+
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -36,8 +37,9 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
     }
     
     // In a real implementation, we would use a proper YouTube API or service
-    // For now, let's use an actual audio file that will definitely play in the browser
-    const audioUrl = "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm.ogg";
+    // For demo purposes, use a reliable audio URL that will actually work
+    // Make sure it's something that will definitely play in a browser
+    const audioUrl = "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars3.wav";
     
     // Set a realistic duration
     const duration = 30; // 30 seconds sample
@@ -47,7 +49,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       id: generateId(),
       name: `YouTube Video ${videoId}`,
       file: null,
-      url: audioUrl, // Use an actual audio URL that will play
+      url: audioUrl,
       duration: duration,
       waveform: generateRandomWaveform(duration),
     };
