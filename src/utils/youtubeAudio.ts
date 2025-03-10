@@ -25,7 +25,9 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
     }
     
     if (!data || !data.success) {
-      throw new Error(data?.error || "Failed to extract audio from YouTube");
+      const errorMessage = data?.error || "Failed to extract audio from YouTube";
+      console.error("Function returned error:", errorMessage);
+      throw new Error(errorMessage);
     }
     
     // Create an audio file object from the edge function response
@@ -38,6 +40,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       waveform: data.data.waveform,
     };
     
+    console.log("Successfully extracted audio:", audioFile.name);
     return audioFile;
   } catch (error) {
     console.error("Error extracting audio from YouTube:", error);

@@ -1,8 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
-import { ytdl } from "https://deno.land/x/ytdl_core/mod.ts";
-import { decode } from "https://deno.land/std@0.177.0/encoding/base64.ts";
+import { load } from "https://deno.land/x/youtube_dl/mod.ts";
 
 // Configure CORS headers for cross-origin requests
 const corsHeaders = {
@@ -19,7 +18,7 @@ serve(async (req) => {
   try {
     // Get request data
     const requestData = await req.json();
-    const { youtubeUrl, apiKey } = requestData;
+    const { youtubeUrl } = requestData;
 
     if (!youtubeUrl) {
       return new Response(
@@ -28,35 +27,29 @@ serve(async (req) => {
       );
     }
 
+    console.log(`Processing YouTube URL: ${youtubeUrl}`);
+
     // Create Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    console.log(`Processing YouTube URL: ${youtubeUrl}`);
+    // Extract video information using youtube_dl
+    const youtube = await load(youtubeUrl);
+    const info = await youtube.info();
+    const videoTitle = info.title || `YouTube Video ${info.id}`;
+    const videoId = info.id;
 
-    // Extract video ID from the URL
-    let videoId = '';
-    if (youtubeUrl.includes("youtu.be")) {
-      videoId = youtubeUrl.split("/").pop() || '';
-    } else {
-      const url = new URL(youtubeUrl);
-      videoId = url.searchParams.get("v") || '';
-    }
-    
     if (!videoId) {
       return new Response(
-        JSON.stringify({ error: 'Could not extract video ID from URL' }),
+        JSON.stringify({ error: 'Could not extract video ID' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get video info to get title
-    const videoInfo = await ytdl.getInfo(youtubeUrl);
-    const videoTitle = videoInfo.videoDetails.title || `YouTube Video ${videoId}`;
+    // Use youtube_dl to download the audio
+    const audioFormats = info.formats.filter(format => format.acodec !== 'none' && !format.vcodec);
     
-    // Download audio only stream
-    const audioFormats = ytdl.filterFormats(videoInfo.formats, 'audioonly');
     if (audioFormats.length === 0) {
       return new Response(
         JSON.stringify({ error: 'No audio formats found for this video' }),
@@ -64,41 +57,18 @@ serve(async (req) => {
       );
     }
     
-    // Use the highest quality audio format
-    const audioFormat = audioFormats[0];
-    const audioStream = ytdl.downloadFromInfo(videoInfo, { format: audioFormat });
+    // Sort by quality and take the best one
+    const bestAudioFormat = audioFormats.sort((a, b) => (b.abr || 0) - (a.abr || 0))[0];
     
-    // Collect chunks of audio data
-    const chunks: Uint8Array[] = [];
-    const reader = audioStream.getReader();
-    
-    // Set a time limit for extraction (3 minutes of audio)
-    const startTime = Date.now();
-    const timeLimit = 3 * 60 * 1000; // 3 minutes in milliseconds
-    
-    let done = false;
-    while (!done) {
-      const { value, done: doneReading } = await reader.read();
-      done = doneReading;
-      
-      if (value) {
-        chunks.push(value);
-      }
-      
-      // Check if we've reached the time limit
-      if (Date.now() - startTime > timeLimit) {
-        console.log("Reached 3-minute time limit for extraction");
-        done = true;
-      }
+    // Download the audio content
+    const audioResponse = await fetch(bestAudioFormat.url);
+    if (!audioResponse.ok) {
+      throw new Error(`Failed to download audio: ${audioResponse.statusText}`);
     }
     
-    // Create a new audio file with the first 3 minutes of audio
-    const audioData = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
-    let offset = 0;
-    for (const chunk of chunks) {
-      audioData.set(chunk, offset);
-      offset += chunk.length;
-    }
+    // Get the audio content as ArrayBuffer
+    const audioBuffer = await audioResponse.arrayBuffer();
+    const audioData = new Uint8Array(audioBuffer);
     
     // Generate a filename
     const filename = `${videoId}-${Date.now()}.mp3`;
@@ -127,7 +97,7 @@ serve(async (req) => {
     const audioUrl = publicUrlData.publicUrl;
     
     // Calculate approximate duration (could be less than 3 minutes if video is shorter)
-    const duration = Math.min(180, videoInfo.videoDetails.lengthSeconds); // Maximum 3 minutes
+    const duration = Math.min(180, info.duration || 180); // Maximum 3 minutes
     
     // Generate random waveform data
     const waveform = Array.from(
@@ -141,7 +111,7 @@ serve(async (req) => {
       .insert({
         name: videoTitle,
         url: audioUrl,
-        duration: parseInt(duration),
+        duration: Math.floor(duration),
         waveform: waveform
       })
       .select()

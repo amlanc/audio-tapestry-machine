@@ -1,8 +1,6 @@
 
 {
   "imports": {
-    "tinyrange": "https://esm.sh/tinyrange@0.0.3",
-    "htmlparser2": "https://esm.sh/htmlparser2@8.0.2",
-    "deno-dom": "https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts"
+    "youtube_dl": "https://deno.land/x/youtube_dl@v0.1.0/mod.ts"
   }
 }
