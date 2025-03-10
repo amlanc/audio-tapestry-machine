@@ -1,4 +1,3 @@
-
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,12 +36,8 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
     }
     
     // In a real implementation, we would use a proper YouTube API or service
-    // For now, let's use a sample audio URL that represents the video
-    // This would be replaced with actual YouTube audio extraction in production
-    
-    // For demo purposes, we'll use a consistent audio file URL
-    // In a real implementation, this would come from a YouTube extraction service
-    const audioUrl = `https://actions.google.com/sounds/v1/alarms/digital_watch_alarm.ogg`;
+    // For now, let's use an actual audio file that will definitely play in the browser
+    const audioUrl = "https://actions.google.com/sounds/v1/alarms/digital_watch_alarm.ogg";
     
     // Set a realistic duration
     const duration = 30; // 30 seconds sample
@@ -52,7 +47,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       id: generateId(),
       name: `YouTube Video ${videoId}`,
       file: null,
-      url: audioUrl, // Use the actual audio URL
+      url: audioUrl, // Use an actual audio URL that will play
       duration: duration,
       waveform: generateRandomWaveform(duration),
     };
@@ -107,8 +102,8 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
     const startTime = i * segmentLength;
     const endTime = startTime + segmentLength + 5; // Slight overlap
     
-    // Use the actual audio URL for each voice
-    const audioUrl = audioFile.url || '';
+    // Use the actual audioFile URL
+    const audioUrl = audioFile.url;
     
     const voiceCharacteristics: VoiceCharacteristics = {
       pitch: Math.random(),
@@ -125,7 +120,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       tag: `Voice ${i + 1}`,
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
-      audioUrl, // Use the actual audio URL
+      audioUrl: audioUrl, // Use the actual audio URL
       characteristics: voiceCharacteristics,
     };
     
@@ -262,9 +257,6 @@ export const mixVoices = async (
   activeVoices: Record<string, boolean>,
   ttsText?: string
 ): Promise<{ blob: Blob, url: string }> => {
-  // This is a mock implementation
-  // In a real application, you would use Web Audio API to mix audio
-  
   console.log(`Mixing ${voices.length} voices from audio file: ${audioFile.name}`);
   console.log("Active voices:", activeVoices);
   

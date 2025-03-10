@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -76,11 +77,12 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   };
 
   useEffect(() => {
-    if (audioRef.current) {
-      if (voice.audioUrl) {
-        audioRef.current.src = voice.audioUrl;
-        console.log(`Set audio source to: ${voice.audioUrl}`);
-      }
+    if (audioRef.current && voice.audioUrl) {
+      audioRef.current.src = voice.audioUrl;
+      console.log(`Set audio source to: ${voice.audioUrl}`);
+      
+      // Pre-load the audio to avoid issues when playing
+      audioRef.current.load();
     }
     
     return () => {
@@ -154,14 +156,20 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     
     if (isPlaying) {
       audioRef.current.pause();
-      audioRef.current.currentTime = voice.startTime;
+      audioRef.current.currentTime = voice.startTime || 0;
       setIsPlaying(false);
     } else {
       if (!audioContextRef.current) {
         initAudioContext();
       }
       
-      audioRef.current.currentTime = voice.startTime;
+      // Make sure the audio source is set
+      if (!audioRef.current.src && voice.audioUrl) {
+        audioRef.current.src = voice.audioUrl;
+        audioRef.current.load();
+      }
+      
+      audioRef.current.currentTime = voice.startTime || 0;
       updateAudioParameters();
       
       const playPromise = audioRef.current.play();
@@ -271,6 +279,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         <audio 
           ref={audioRef}
           onEnded={handleAudioEnded}
+          preload="auto"
           onTimeUpdate={(e) => {
             const audio = e.target as HTMLAudioElement;
             if (audio.currentTime >= voice.endTime) {
