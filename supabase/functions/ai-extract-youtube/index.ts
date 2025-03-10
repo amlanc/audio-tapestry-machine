@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import OpenAI from "openai";
-import { createClient } from "@supabase/supabase-js";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -31,8 +30,9 @@ serve(async (req) => {
       apiKey: openaiApiKey
     });
 
-    console.log("Analyzing YouTube URL with OpenAI...");
-    // Use the recommended gpt-4o-mini model instead of gpt-4
+    console.log("Analyzing YouTube URL:", youtubeUrl);
+    
+    // Use the gpt-4o-mini model for analysis
     const analysis = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
