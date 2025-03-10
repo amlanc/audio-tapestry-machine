@@ -43,7 +43,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
       if (success) {
         toast({
           title: "Voice updated",
-          description: `"${tag}" voice characteristics saved successfully.",
+          description: `"${tag}" voice characteristics saved successfully.`,
           duration: 2000,
         });
       }
