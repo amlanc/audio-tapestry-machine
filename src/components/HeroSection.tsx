@@ -19,13 +19,13 @@ const HeroSection: React.FC = () => {
     });
   };
 
-  const handleTryDemo = () => {
-    // For demo purposes, navigate to the app page directly
+  const handleFileUploadClick = () => {
+    // Navigate to the app page directly
     navigate('/app');
     
     toast({
-      title: "Demo mode activated",
-      description: "You can now explore the app with sample audio",
+      title: "File upload mode activated",
+      description: "You can now upload an audio file for analysis",
     });
   };
 
@@ -48,9 +48,9 @@ const HeroSection: React.FC = () => {
               <Youtube className="w-5 h-5 text-red-500" />
               Add YouTube URL
             </Button>
-            <Button size="lg" variant="outline" className="gap-2" onClick={handleTryDemo}>
-              <AudioWaveform className="w-5 h-5" />
-              Try Demo
+            <Button size="lg" variant="outline" className="gap-2" onClick={handleFileUploadClick}>
+              <Upload className="w-5 h-5" />
+              Upload Audio File
             </Button>
           </div>
         </div>

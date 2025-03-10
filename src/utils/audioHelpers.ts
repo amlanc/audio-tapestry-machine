@@ -11,11 +11,8 @@ export const generateRandomWaveform = (length: number = 100): number[] => {
   return Array.from({ length }, () => Math.random() * 0.8 + 0.2);
 };
 
-// Extract audio from YouTube (mock implementation)
+// Extract audio from YouTube using YouTube API (mock implementation)
 export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<AudioFile | null> => {
-  // This is a mock implementation
-  // In a real application, you would use a server-side API or a service like youtube-dl
-  
   console.log(`Extracting audio from YouTube URL: ${youtubeUrl}`);
   
   try {
@@ -25,11 +22,29 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       throw new Error("Invalid YouTube URL");
     }
     
-    // Mock a successful response
-    const videoId = youtubeUrl.includes("youtu.be") 
-      ? youtubeUrl.split("/").pop() 
-      : new URL(youtubeUrl).searchParams.get("v");
+    // Extract video ID from the URL
+    let videoId = '';
+    if (youtubeUrl.includes("youtu.be")) {
+      videoId = youtubeUrl.split("/").pop() || '';
+    } else {
+      const url = new URL(youtubeUrl);
+      videoId = url.searchParams.get("v") || '';
+    }
     
+    if (!videoId) {
+      throw new Error("Could not extract video ID from URL");
+    }
+    
+    // In a real app, you would make a call to the YouTube API
+    // For this demo, we'll simulate the API response
+    
+    // Mock fetch video information from YouTube API
+    console.log(`Fetching data for video ID: ${videoId}`);
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Create a mock audio file with the video details
     const mockAudioFile: AudioFile = {
       id: generateId(),
       name: `YouTube Video ${videoId}`,
@@ -39,10 +54,13 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       waveform: generateRandomWaveform(180),
     };
     
+    // Log success
+    console.log("Successfully extracted audio from YouTube");
+    
     return mockAudioFile;
   } catch (error) {
     console.error("Error extracting audio from YouTube:", error);
-    return null;
+    throw error;
   }
 };
 
