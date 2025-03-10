@@ -116,6 +116,18 @@ serve(async (req) => {
       audioFileId = existingFiles[0].id;
       console.log(`Using existing audio file with ID: ${audioFileId}`);
       
+      // Delete existing voice segments to recreate them
+      const { error: deleteError } = await supabase
+        .from('voices')
+        .delete()
+        .eq('audio_id', audioFileId);
+        
+      if (deleteError) {
+        console.error("Error deleting existing voices:", deleteError);
+      } else {
+        console.log("Successfully deleted existing voices");
+      }
+      
       // Update the existing file with new metadata
       await supabase
         .from('audio_files')
@@ -125,12 +137,6 @@ serve(async (req) => {
           waveform: waveform,
         })
         .eq('id', audioFileId);
-        
-      // Delete existing voice segments to recreate them
-      await supabase
-        .from('voices')
-        .delete()
-        .eq('audio_id', audioFileId);
     } else {
       // Store audio file metadata
       const { data: audioFile, error: audioFileError } = await supabase
@@ -193,6 +199,9 @@ serve(async (req) => {
         // Ensure startTime is an integer for better YouTube embedding
         const startTimeInt = Math.floor(startTime);
         
+        // Construct a proper direct YouTube URL with timestamp
+        const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
+        
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
@@ -203,8 +212,8 @@ serve(async (req) => {
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            // Format YouTube URL to work well with direct embedding
-            audio_url: `https://www.youtube.com/embed/${videoId}?start=${startTimeInt}&autoplay=0`,
+            // Use direct YouTube watch URL for better compatibility
+            audio_url: youtubeWatchUrl,
             characteristics: characteristics
           })
           .select()
@@ -213,6 +222,7 @@ serve(async (req) => {
         if (voiceError) {
           console.error("Error storing voice segment:", voiceError);
         } else {
+          console.log(`Created voice segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
           voiceSegments.push(voice);
         }
       }
@@ -233,6 +243,9 @@ serve(async (req) => {
           clarity: Math.random(),
         };
         
+        // Construct a proper direct YouTube URL with timestamp
+        const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
+        
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
@@ -243,8 +256,8 @@ serve(async (req) => {
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            // Format YouTube URL to work well with direct embedding
-            audio_url: `https://www.youtube.com/embed/${videoId}?start=${startTimeInt}&autoplay=0`,
+            // Use direct YouTube watch URL for better compatibility
+            audio_url: youtubeWatchUrl,
             characteristics: characteristics
           })
           .select()
@@ -253,6 +266,7 @@ serve(async (req) => {
         if (voiceError) {
           console.error("Error storing voice segment:", voiceError);
         } else {
+          console.log(`Created fallback voice segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
           voiceSegments.push(voice);
         }
       }

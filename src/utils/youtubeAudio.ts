@@ -52,16 +52,20 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
 // Delete all voices associated with an audio file
 export const deleteAllVoices = async (audioId: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
+    console.log(`Deleting all voices for audio ID: ${audioId}`);
+    
+    const { data, error } = await supabase
       .from('voices')
       .delete()
-      .eq('audio_id', audioId);
+      .eq('audio_id', audioId)
+      .select();
       
     if (error) {
       console.error("Error deleting voices:", error);
       throw error;
     }
     
+    console.log(`Successfully deleted ${data?.length || 0} voices`);
     return true;
   } catch (error) {
     console.error("Error deleting all voices:", error);
