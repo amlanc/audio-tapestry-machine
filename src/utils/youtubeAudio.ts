@@ -13,7 +13,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       throw new Error("Invalid YouTube URL");
     }
     
-    // Call the new AI-powered Supabase Edge Function
+    // Call AI-powered Supabase Edge Function instead of the problematic one
     const response = await supabase.functions.invoke('ai-extract-youtube', {
       body: { youtubeUrl }
     });

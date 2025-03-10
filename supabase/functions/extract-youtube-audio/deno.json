@@ -1,7 +1,6 @@
 
 {
   "imports": {
-    "ytdl_core": "https://deno.land/x/ytdl_core@v0.1.2/mod.ts",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.2"
   },
   "tasks": {
