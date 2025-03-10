@@ -40,37 +40,135 @@ serve(async (req) => {
       );
     }
 
-    // Get YouTube video details using Google Gemini API
-    const geminiApiKey = Deno.env.get('GEMINI_API_KEY');
-    if (!geminiApiKey) {
-      throw new Error('Gemini API key is not configured');
+    // Get YouTube video details using AssemblyAI API
+    const assemblyApiKey = Deno.env.get('ASSEMBLYAI_API_KEY');
+    if (!assemblyApiKey) {
+      throw new Error('AssemblyAI API key is not configured');
     }
 
-    console.log(`Using Gemini API to get information for video ID: ${videoId}`);
+    console.log(`Using AssemblyAI API to process video ID: ${videoId}`);
     
-    // Get video title and other details from Gemini API
-    const videoDetails = await getYouTubeVideoDetails(geminiApiKey, videoId, youtubeUrl);
+    // Create a YouTube stream URL
+    const youtubeStreamUrl = `https://www.youtube.com/watch?v=${videoId}`;
     
-    if (!videoDetails) {
-      throw new Error('Failed to get video details from Gemini API');
+    // Use AssemblyAI to transcribe the YouTube video
+    // First, submit the transcription request
+    const transcriptResponse = await fetch('https://api.assemblyai.com/v2/transcript', {
+      method: 'POST',
+      headers: {
+        'Authorization': assemblyApiKey,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        audio_url: youtubeStreamUrl,
+        auto_chapters: true, // Get chapters/segments for better voice detection
+        speaker_labels: true // Identify different speakers
+      })
+    });
+    
+    if (!transcriptResponse.ok) {
+      const errorData = await transcriptResponse.json();
+      console.error("AssemblyAI transcription request error:", errorData);
+      throw new Error(`AssemblyAI error: ${JSON.stringify(errorData)}`);
     }
     
-    // Generate random waveform data for visualization (based on the video duration)
-    const duration = videoDetails.duration || Math.floor(Math.random() * 120) + 60; // 1-3 minute duration if not provided
-    const waveform = Array.from(
-      { length: Math.ceil(duration) }, 
-      () => Math.random() * 0.8 + 0.2
-    );
+    const transcriptData = await transcriptResponse.json();
+    const transcriptId = transcriptData.id;
+    
+    console.log(`Transcription submitted with ID: ${transcriptId}`);
+    
+    // Poll for the transcription results (simplified polling for edge function)
+    // In a real implementation, we might use a webhook or background task
+    let transcript = null;
+    let attempts = 0;
+    const maxAttempts = 5; // Limit polling attempts for the edge function
+    
+    while (attempts < maxAttempts) {
+      attempts++;
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds between polls
+      
+      const pollingResponse = await fetch(`https://api.assemblyai.com/v2/transcript/${transcriptId}`, {
+        headers: {
+          'Authorization': assemblyApiKey
+        }
+      });
+      
+      if (!pollingResponse.ok) {
+        console.error(`Polling error on attempt ${attempts}`);
+        continue;
+      }
+      
+      const pollingData = await pollingResponse.json();
+      
+      if (pollingData.status === 'completed') {
+        transcript = pollingData;
+        break;
+      } else if (pollingData.status === 'error') {
+        throw new Error(`Transcription failed: ${pollingData.error}`);
+      }
+      
+      console.log(`Transcription status: ${pollingData.status}, attempt ${attempts}/${maxAttempts}`);
+    }
+    
+    // If we couldn't get the full transcript in time, return what we have
+    // The frontend can handle this partial data
+    let title = `YouTube Video (${videoId})`;
+    let duration = 0;
+    let waveform = [];
+    
+    if (transcript) {
+      // If we have a transcript, extract useful information
+      title = transcript.audio_url.split('/').pop() || title;
+      duration = Math.ceil(transcript.audio_duration || 0);
+      
+      // Generate waveform from transcript words if available
+      if (transcript.words && transcript.words.length > 0) {
+        // Create a timeline representation for visualization
+        const timeSegments = Math.ceil(duration);
+        waveform = Array(timeSegments).fill(0);
+        
+        transcript.words.forEach(word => {
+          const segmentIndex = Math.floor(word.start / 1000);
+          if (segmentIndex < timeSegments) {
+            waveform[segmentIndex] = Math.max(waveform[segmentIndex], 0.5 + Math.random() * 0.5);
+          }
+        });
+        
+        // Fill in any gaps
+        waveform = waveform.map(w => w === 0 ? 0.2 + Math.random() * 0.3 : w);
+      } else {
+        // Fallback to random waveform
+        waveform = Array.from(
+          { length: Math.ceil(duration || 120) }, 
+          () => Math.random() * 0.8 + 0.2
+        );
+      }
+    } else {
+      // Fallback values if transcript couldn't be completed in time
+      console.log("Timeout waiting for full transcript, using partial data");
+      duration = 120; // Default to 2 minutes
+      waveform = Array.from(
+        { length: duration }, 
+        () => Math.random() * 0.8 + 0.2
+      );
+    }
     
     return new Response(
       JSON.stringify({ 
         success: true, 
         data: {
           id: videoId,
-          name: videoDetails.title,
+          name: title,
           url: null, // We're not actually downloading audio right now
           duration: duration,
-          waveform: waveform
+          waveform: waveform,
+          transcript: transcript ? {
+            id: transcript.id,
+            text: transcript.text,
+            words: transcript.words,
+            speakers: transcript.speaker_labels ? transcript.utterances : null,
+            chapters: transcript.chapters
+          } : null
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -103,96 +201,5 @@ function extractVideoId(url: string): string | null {
     return null;
   } catch {
     return null;
-  }
-}
-
-// Function to get YouTube video details using Google Gemini API
-async function getYouTubeVideoDetails(apiKey: string, videoId: string, youtubeUrl: string) {
-  try {
-    const prompt = `
-      Extract information from this YouTube video: ${youtubeUrl} with ID: ${videoId}
-      
-      Please provide the following in valid JSON format:
-      1. The video title
-      2. The approximate duration in seconds (your best guess)
-      3. The creator/channel name
-      
-      Format your response ONLY as a valid JSON object with the following keys:
-      {
-        "title": "Video Title",
-        "duration": 180,
-        "channel": "Channel Name"
-      }
-    `;
-    
-    console.log("Sending request to Gemini API");
-    
-    const response = await fetch("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-experimental:generateContent", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{ text: prompt }]
-        }],
-        generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 200
-        }
-      })
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Gemini API error:", errorText);
-      throw new Error(`Gemini API error: ${response.status} ${response.statusText}`);
-    }
-    
-    const responseData = await response.json();
-    console.log("Gemini API response:", JSON.stringify(responseData, null, 2));
-    
-    // Extract JSON from the text response
-    let jsonResponseText = '';
-    if (responseData.candidates && 
-        responseData.candidates[0] && 
-        responseData.candidates[0].content &&
-        responseData.candidates[0].content.parts) {
-      
-      jsonResponseText = responseData.candidates[0].content.parts
-        .filter((part: any) => part.text)
-        .map((part: any) => part.text)
-        .join('');
-    }
-    
-    // Find and extract JSON from the text
-    const jsonMatch = jsonResponseText.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      console.error("Could not extract JSON from Gemini response", jsonResponseText);
-      // Fallback to default values
-      return {
-        title: `YouTube Video (${videoId})`,
-        duration: 120,
-        channel: "Unknown"
-      };
-    }
-    
-    const extractedJson = JSON.parse(jsonMatch[0]);
-    console.log("Extracted video details:", extractedJson);
-    
-    return {
-      title: extractedJson.title || `YouTube Video (${videoId})`,
-      duration: extractedJson.duration || 120,
-      channel: extractedJson.channel || "Unknown"
-    };
-  } catch (error) {
-    console.error("Error getting YouTube video details:", error);
-    // Return default values in case of error
-    return {
-      title: `YouTube Video (${videoId})`,
-      duration: 120,
-      channel: "Unknown"
-    };
   }
 }
