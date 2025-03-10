@@ -18,6 +18,29 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
   const [youtubeUrl, setYoutubeUrl] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
 
+  // Function to validate and clean YouTube URL
+  const validateYoutubeUrl = (url: string): string | null => {
+    try {
+      const urlObj = new URL(url);
+      // Handle youtu.be format
+      if (urlObj.hostname === 'youtu.be') {
+        const videoId = urlObj.pathname.slice(1);
+        return `https://www.youtube.com/watch?v=${videoId}&autoplay=0`;
+      }
+      // Handle youtube.com format
+      if (urlObj.hostname.includes('youtube.com')) {
+        const videoId = urlObj.searchParams.get('v');
+        if (!videoId) return null;
+        // Ensure autoplay is disabled
+        urlObj.searchParams.set('autoplay', '0');
+        return urlObj.toString();
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const handleExtractAudio = async () => {
     if (!youtubeUrl.trim()) {
       toast({
@@ -28,9 +51,19 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       return;
     }
 
+    const validUrl = validateYoutubeUrl(youtubeUrl);
+    if (!validUrl) {
+      toast({
+        title: 'Invalid URL',
+        description: 'Please enter a valid YouTube URL',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setIsExtracting(true);
-      const result = await extractAudioFromYouTube(youtubeUrl);
+      const result = await extractAudioFromYouTube(validUrl);
       setIsExtracting(false);
       
       if (!result) {
