@@ -41,29 +41,22 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       waveform: data.data.waveform,
     };
     
-    // Store the transcript data if available (makes it available for voice analysis)
-    if (data.data.transcript) {
-      // Instead of trying to directly store it in a 'transcripts' table that doesn't exist,
-      // we can save this data in local storage or as part of the audio_files record
-      console.log("Transcript data available:", data.data.transcript.id);
+    // Optionally, store additional metadata about the audio file
+    try {
+      // Update or insert the audio file in the audio_files table
+      await supabase.from('audio_files').upsert({
+        id: audioFile.id,
+        name: audioFile.name,
+        duration: audioFile.duration,
+        url: audioFile.url || '',
+        waveform: audioFile.waveform,
+        created_at: new Date().toISOString()
+      });
       
-      // Optionally, store additional metadata about the audio file
-      try {
-        // Update or insert the audio file in the audio_files table
-        await supabase.from('audio_files').upsert({
-          id: audioFile.id,
-          name: audioFile.name,
-          duration: audioFile.duration,
-          url: audioFile.url || '',
-          waveform: audioFile.waveform,
-          created_at: new Date().toISOString()
-        });
-        
-        console.log("Saved audio file data to Supabase");
-      } catch (error) {
-        console.error("Error saving audio file data:", error);
-        // Continue even if saving data fails
-      }
+      console.log("Saved audio file data to Supabase");
+    } catch (error) {
+      console.error("Error saving audio file data:", error);
+      // Continue even if saving data fails
     }
     
     console.log("Successfully extracted audio:", audioFile.name);
