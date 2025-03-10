@@ -54,18 +54,30 @@ export const deleteAllVoices = async (audioId: string): Promise<boolean> => {
   try {
     console.log(`Deleting all voices for audio ID: ${audioId}`);
     
+    // First, fetch the voices to be deleted (for logging purposes)
+    const { data: voicesToDelete, error: fetchError } = await supabase
+      .from('voices')
+      .select('id, tag')
+      .eq('audio_id', audioId);
+      
+    if (fetchError) {
+      console.error("Error fetching voices to delete:", fetchError);
+    } else {
+      console.log(`Found ${voicesToDelete?.length || 0} voices to delete:`, voicesToDelete);
+    }
+    
+    // Now delete the voices
     const { data, error } = await supabase
       .from('voices')
       .delete()
-      .eq('audio_id', audioId)
-      .select();
+      .eq('audio_id', audioId);
       
     if (error) {
       console.error("Error deleting voices:", error);
       throw error;
     }
     
-    console.log(`Successfully deleted ${data?.length || 0} voices`);
+    console.log(`Successfully deleted voices for audio ID: ${audioId}`);
     return true;
   } catch (error) {
     console.error("Error deleting all voices:", error);

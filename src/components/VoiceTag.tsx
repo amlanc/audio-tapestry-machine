@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -250,8 +251,8 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
           // Format: https://www.youtube.com/watch?v=VIDEO_ID&start=123
           const urlObj = new URL(url);
           videoId = urlObj.searchParams.get('v') || '';
-          const startParam = urlObj.searchParams.get('start');
-          if (startParam) startTime = parseInt(startParam);
+          const timeParam = urlObj.searchParams.get('t') || urlObj.searchParams.get('start');
+          if (timeParam) startTime = parseInt(timeParam);
         }
       }
       
@@ -265,6 +266,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
         startTime = 0;
       }
       
+      // Add autoplay=1 to automatically start playing the video
       const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1&rel=0&modestbranding=1`;
       console.log("Generated embed URL:", embedUrl);
       return embedUrl;

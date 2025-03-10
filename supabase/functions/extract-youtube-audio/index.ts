@@ -135,6 +135,7 @@ serve(async (req) => {
           name: title,
           duration: duration,
           waveform: waveform,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
         })
         .eq('id', audioFileId);
     } else {
@@ -199,8 +200,10 @@ serve(async (req) => {
         // Ensure startTime is an integer for better YouTube embedding
         const startTimeInt = Math.floor(startTime);
         
-        // Construct a proper direct YouTube URL with timestamp
+        // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
+        
+        console.log(`Creating voice segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
@@ -212,7 +215,6 @@ serve(async (req) => {
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            // Use direct YouTube watch URL for better compatibility
             audio_url: youtubeWatchUrl,
             characteristics: characteristics
           })
@@ -243,8 +245,10 @@ serve(async (req) => {
           clarity: Math.random(),
         };
         
-        // Construct a proper direct YouTube URL with timestamp
+        // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
+        
+        console.log(`Creating fallback voice at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
@@ -256,7 +260,6 @@ serve(async (req) => {
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            // Use direct YouTube watch URL for better compatibility
             audio_url: youtubeWatchUrl,
             characteristics: characteristics
           })
@@ -288,6 +291,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log("Returning success response with audio file:", finalAudioFile.id);
     
     // Return success response with the audio file data
     return new Response(
