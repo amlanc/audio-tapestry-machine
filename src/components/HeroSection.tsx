@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, Waveform, Upload, Tag } from 'lucide-react';
+import { Mic, AudioWaveform, Upload, Tag } from 'lucide-react';
 
 const HeroSection: React.FC = () => {
   return (
@@ -24,7 +24,7 @@ const HeroSection: React.FC = () => {
               Upload Audio
             </Button>
             <Button size="lg" variant="outline" className="gap-2">
-              <Waveform className="w-5 h-5" />
+              <AudioWaveform className="w-5 h-5" />
               Try Demo
             </Button>
           </div>
@@ -50,7 +50,7 @@ const HeroSection: React.FC = () => {
           
           <div className="glass-panel p-6 flex flex-col items-center text-center">
             <div className="bg-primary/20 p-3 rounded-full mb-4">
-              <Waveform className="w-6 h-6 text-primary" />
+              <AudioWaveform className="w-6 h-6 text-primary" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Custom Mixing</h3>
             <p className="text-muted-foreground">Create personalized audio mixes by adjusting the volume of each voice.</p>

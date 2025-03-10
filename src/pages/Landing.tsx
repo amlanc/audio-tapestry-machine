@@ -5,7 +5,7 @@ import Header from '@/components/Header';
 import HeroSection from '@/components/HeroSection';
 import Footer from '@/components/Footer';
 import { Button } from '@/components/ui/button';
-import { ArrowRight, Mic, Headphones, Waveform, Download, Youtube } from 'lucide-react';
+import { ArrowRight, Mic, Headphones, AudioWaveform, Download, Youtube } from 'lucide-react';
 
 const Landing = () => {
   return (
@@ -84,7 +84,7 @@ const Landing = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="flex flex-col gap-4">
-              <Waveform className="w-8 h-8 text-primary" />
+              <AudioWaveform className="w-8 h-8 text-primary" />
               <h3 className="text-xl font-semibold">Advanced Waveform Display</h3>
               <p className="text-muted-foreground">Visualize audio with interactive waveforms that highlight voice sections</p>
             </div>
