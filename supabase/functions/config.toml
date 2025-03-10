@@ -3,3 +3,4 @@ project_id = "ehdmyhvcrpzdzvhgzemw"
 
 [global.env]
 ENVIRONMENT = "development"
+OPENAI_API_KEY = "{{env.OPENAI_API_KEY}}"

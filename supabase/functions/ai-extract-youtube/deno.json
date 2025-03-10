@@ -1,6 +1,10 @@
 
 {
   "imports": {
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1",
+    "openai": "https://esm.sh/openai@4.20.1"
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read index.ts"
   }
 }

@@ -1,6 +1,10 @@
 
 {
   "imports": {
-    "youtube_dl": "https://deno.land/x/youtube_dl@0.8.0/mod.ts"
+    "youtube_dl": "https://deno.land/x/youtube_dl@0.8.0/mod.ts",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.7.1"
+  },
+  "tasks": {
+    "start": "deno run --allow-net --allow-env --allow-read index.ts"
   }
 }
