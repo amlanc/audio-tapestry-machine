@@ -78,6 +78,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               variant="ghost" 
               onClick={togglePlayback} 
               className="h-7 w-7 p-0"
+              title="Play voice sample"
             >
               {isPlaying ? (
                 <Square className="h-4 w-4" />

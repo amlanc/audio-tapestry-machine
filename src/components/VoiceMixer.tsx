@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
-import { Sliders, Download, Loader2 } from 'lucide-react';
+import { Sliders, Download, Loader2, Play, MessageSquare } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { AudioFile, Voice } from '@/types';
-import { mixVoices, downloadAudio } from '@/utils/audioHelpers';
+import { mixVoices, downloadAudio, generateSpeechFromText } from '@/utils/audioHelpers';
 import { useToast } from '@/components/ui/use-toast';
 
 interface VoiceMixerProps {
@@ -23,6 +24,10 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
   );
   const [masterVolume, setMasterVolume] = useState(1);
   const [isMixing, setIsMixing] = useState(false);
+  const [isGeneratingSpeech, setIsGeneratingSpeech] = useState(false);
+  const [ttsText, setTtsText] = useState("");
+  const [showTtsInput, setShowTtsInput] = useState(false);
+  const [mixedAudioUrl, setMixedAudioUrl] = useState<string | null>(null);
 
   const handleVoiceToggle = (voiceId: string, isActive: boolean) => {
     setActiveVoices(prev => ({
@@ -54,14 +59,21 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
     try {
       setIsMixing(true);
       
-      const mixedAudioBlob = await mixVoices(audioFile, voices, activeVoices);
+      const mixResult = await mixVoices(
+        audioFile, 
+        voices, 
+        activeVoices, 
+        showTtsInput ? ttsText : undefined
+      );
+      
+      setMixedAudioUrl(mixResult.url);
       
       // Generate filename
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const filename = `mixed-voice-${timestamp}.wav`;
       
       // Download the mixed audio
-      downloadAudio(mixedAudioBlob, filename);
+      downloadAudio(mixResult.blob, filename);
       
       toast({
         title: 'Mix complete',
@@ -76,6 +88,45 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
       });
     } finally {
       setIsMixing(false);
+    }
+  };
+
+  const handleGenerateSpeech = async () => {
+    if (!ttsText.trim()) {
+      toast({
+        title: 'Text required',
+        description: 'Please enter text for the TTS engine',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setIsGeneratingSpeech(true);
+      
+      // Use the first active voice for TTS characteristics
+      const activeVoice = voices.find(v => activeVoices[v.id]);
+      
+      const speechUrl = await generateSpeechFromText(ttsText, activeVoice);
+      
+      toast({
+        title: 'Speech generated',
+        description: 'Text-to-speech conversion completed',
+      });
+
+      // Play the generated speech
+      const audio = new Audio(speechUrl);
+      audio.play();
+      
+    } catch (error) {
+      console.error('Error generating speech:', error);
+      toast({
+        title: 'Speech generation failed',
+        description: error instanceof Error ? error.message : 'Failed to generate speech',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingSpeech(false);
     }
   };
 
@@ -135,6 +186,61 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
             </div>
           ))}
         </div>
+        
+        <Separator />
+        
+        <div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="mb-4"
+            onClick={() => setShowTtsInput(!showTtsInput)}
+          >
+            <MessageSquare className="h-4 w-4 mr-2" />
+            {showTtsInput ? 'Hide Text-to-Speech' : 'Show Text-to-Speech'}
+          </Button>
+          
+          {showTtsInput && (
+            <div className="space-y-3">
+              <Textarea
+                placeholder="Enter text for the mixed voice to speak..."
+                value={ttsText}
+                onChange={(e) => setTtsText(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="secondary"
+                  onClick={handleGenerateSpeech}
+                  disabled={isGeneratingSpeech || !ttsText.trim()}
+                  className="w-full"
+                >
+                  {isGeneratingSpeech ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Play className="mr-2 h-4 w-4" />
+                      Preview Speech
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {mixedAudioUrl && (
+          <div className="pt-4">
+            <h3 className="text-sm font-medium mb-2">Mixed Audio Preview</h3>
+            <audio src={mixedAudioUrl} controls className="w-full" />
+          </div>
+        )}
       </CardContent>
       
       <CardFooter>

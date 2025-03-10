@@ -9,7 +9,118 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      audio_files: {
+        Row: {
+          created_at: string
+          duration: number
+          id: string
+          name: string
+          url: string
+          waveform: Json
+        }
+        Insert: {
+          created_at?: string
+          duration: number
+          id?: string
+          name: string
+          url: string
+          waveform: Json
+        }
+        Update: {
+          created_at?: string
+          duration?: number
+          id?: string
+          name?: string
+          url?: string
+          waveform?: Json
+        }
+        Relationships: []
+      }
+      mixed_outputs: {
+        Row: {
+          audio_id: string
+          created_at: string
+          id: string
+          output_url: string
+          tts_text: string | null
+          voices: Json
+        }
+        Insert: {
+          audio_id: string
+          created_at?: string
+          id?: string
+          output_url: string
+          tts_text?: string | null
+          voices: Json
+        }
+        Update: {
+          audio_id?: string
+          created_at?: string
+          id?: string
+          output_url?: string
+          tts_text?: string | null
+          voices?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mixed_outputs_audio_id_fkey"
+            columns: ["audio_id"]
+            isOneToOne: false
+            referencedRelation: "audio_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      voices: {
+        Row: {
+          audio_id: string
+          audio_url: string
+          characteristics: Json
+          color: string
+          created_at: string
+          end_time: number
+          id: string
+          start_time: number
+          tag: string
+          updated_at: string
+          volume: number
+        }
+        Insert: {
+          audio_id: string
+          audio_url: string
+          characteristics: Json
+          color: string
+          created_at?: string
+          end_time: number
+          id?: string
+          start_time: number
+          tag: string
+          updated_at?: string
+          volume?: number
+        }
+        Update: {
+          audio_id?: string
+          audio_url?: string
+          characteristics?: Json
+          color?: string
+          created_at?: string
+          end_time?: number
+          id?: string
+          start_time?: number
+          tag?: string
+          updated_at?: string
+          volume?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voices_audio_id_fkey"
+            columns: ["audio_id"]
+            isOneToOne: false
+            referencedRelation: "audio_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

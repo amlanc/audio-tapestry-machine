@@ -1,5 +1,6 @@
 
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
+import { supabase } from "@/integrations/supabase/client";
 
 // Generate random ID
 export const generateId = (): string => {
@@ -54,8 +55,28 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       waveform: generateRandomWaveform(180),
     };
     
+    // Store the audio file in Supabase
+    const { data: storedAudio, error: storeError } = await supabase
+      .from('audio_files')
+      .insert({
+        name: mockAudioFile.name,
+        url: mockAudioFile.url,
+        duration: mockAudioFile.duration,
+        waveform: mockAudioFile.waveform
+      })
+      .select()
+      .single();
+      
+    if (storeError) {
+      console.error("Error storing audio in Supabase:", storeError);
+      throw new Error("Failed to store audio file");
+    }
+    
+    // Update the mockAudioFile with the stored ID
+    mockAudioFile.id = storedAudio.id;
+    
     // Log success
-    console.log("Successfully extracted audio from YouTube");
+    console.log("Successfully extracted audio from YouTube and stored in Supabase");
     
     return mockAudioFile;
   } catch (error) {
@@ -88,6 +109,13 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
     // For mock purposes, we'll reuse the original audio file URL or a placeholder
     const audioUrl = audioFile.url || 'https://example.com/audio-sample.mp3';
     
+    const voiceCharacteristics = {
+      pitch: Math.random(),
+      tone: Math.random(),
+      speed: Math.random(),
+      clarity: Math.random(),
+    };
+    
     const mockVoice: Voice = {
       id: generateId(),
       audioId: audioFile.id,
@@ -97,13 +125,32 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
       audioUrl, // Set the audio URL for voice previewing
-      characteristics: {
-        pitch: Math.random(),
-        tone: Math.random(),
-        speed: Math.random(),
-        clarity: Math.random(),
-      },
+      characteristics: voiceCharacteristics,
     };
+    
+    // Store the voice in Supabase
+    const { data: storedVoice, error: storeError } = await supabase
+      .from('voices')
+      .insert({
+        audio_id: audioFile.id,
+        tag: mockVoice.tag,
+        start_time: mockVoice.startTime,
+        end_time: mockVoice.endTime,
+        color: mockVoice.color,
+        volume: mockVoice.volume,
+        audio_url: mockVoice.audioUrl,
+        characteristics: mockVoice.characteristics
+      })
+      .select()
+      .single();
+      
+    if (storeError) {
+      console.error("Error storing voice in Supabase:", storeError);
+      // Continue with the next voice even if this one fails
+    } else {
+      // Update the mockVoice with the stored ID
+      mockVoice.id = storedVoice.id;
+    }
     
     mockVoices.push(mockVoice);
   }
@@ -132,15 +179,55 @@ export const processAudioFile = async (file: File): Promise<AudioFile> => {
         // Decode the audio data
         audioContext.decodeAudioData(
           arrayBuffer,
-          (audioBuffer) => {
+          async (audioBuffer) => {
             const duration = Math.ceil(audioBuffer.duration);
             const waveform = generateRandomWaveform(duration);
             
+            // Create a blob URL for the file
+            const url = URL.createObjectURL(file);
+            
+            // Upload file to Supabase Storage
+            const filePath = `${generateId()}-${file.name}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('audio_files')
+              .upload(filePath, file);
+              
+            if (uploadError) {
+              console.error("Error uploading to Supabase Storage:", uploadError);
+              reject(uploadError);
+              return;
+            }
+            
+            // Get the public URL
+            const { data: publicUrl } = supabase.storage
+              .from('audio_files')
+              .getPublicUrl(filePath);
+              
+            const storageUrl = publicUrl.publicUrl;
+            
+            // Store audio file metadata in Supabase
+            const { data: storedAudio, error: storeError } = await supabase
+              .from('audio_files')
+              .insert({
+                name: file.name,
+                url: storageUrl,
+                duration,
+                waveform
+              })
+              .select()
+              .single();
+              
+            if (storeError) {
+              console.error("Error storing audio in Supabase:", storeError);
+              reject(storeError);
+              return;
+            }
+            
             const audioFile: AudioFile = {
-              id: generateId(),
+              id: storedAudio.id,
               name: file.name,
               file,
-              url: URL.createObjectURL(file),
+              url: storageUrl,
               duration,
               waveform,
             };
@@ -164,48 +251,107 @@ export const processAudioFile = async (file: File): Promise<AudioFile> => {
   });
 };
 
-// Mix voices based on settings (mock implementation)
+// Mix voices based on settings and generate TTS
 export const mixVoices = async (
   audioFile: AudioFile,
   voices: Voice[],
-  activeVoices: Record<string, boolean>
-): Promise<Blob> => {
+  activeVoices: Record<string, boolean>,
+  ttsText?: string
+): Promise<{ blob: Blob, url: string }> => {
   // This is a mock implementation
   // In a real application, you would use Web Audio API to mix audio
   
   console.log(`Mixing ${voices.length} voices from audio file: ${audioFile.name}`);
   console.log("Active voices:", activeVoices);
   
+  if (ttsText) {
+    console.log(`Will generate TTS for text: "${ttsText}"`);
+  }
+  
   // Simulate processing delay
   await new Promise(resolve => setTimeout(resolve, 2000));
   
-  // Return original file as mock result
+  // Create a blob from the original file or a placeholder
+  let mixedBlob: Blob;
+  
   if (audioFile.file) {
-    return audioFile.file;
+    mixedBlob = audioFile.file;
+  } else {
+    // Create an empty audio file
+    mixedBlob = new Blob(
+      [new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0])], 
+      { type: "audio/wav" }
+    );
   }
   
-  // If no file (e.g., from YouTube), create an empty audio file
-  const emptyAudioBlob = new Blob(
-    [new Uint8Array([0, 0, 0, 0, 0, 0, 0, 0])], 
-    { type: "audio/wav" }
-  );
+  // Upload mixed result to Supabase
+  const filePath = `mixed-${audioFile.id}-${Date.now()}.wav`;
+  const { data: uploadData, error: uploadError } = await supabase.storage
+    .from('mixed_outputs')
+    .upload(filePath, mixedBlob);
+    
+  if (uploadError) {
+    console.error("Error uploading mixed audio to Supabase Storage:", uploadError);
+    throw uploadError;
+  }
   
-  return emptyAudioBlob;
+  // Get the public URL
+  const { data: publicUrl } = supabase.storage
+    .from('mixed_outputs')
+    .getPublicUrl(filePath);
+    
+  const storageUrl = publicUrl.publicUrl;
+  
+  // Store mixed output metadata in Supabase
+  const { data: storedOutput, error: storeError } = await supabase
+    .from('mixed_outputs')
+    .insert({
+      audio_id: audioFile.id,
+      voices: Object.keys(activeVoices).filter(id => activeVoices[id]),
+      output_url: storageUrl,
+      tts_text: ttsText || null
+    })
+    .select()
+    .single();
+    
+  if (storeError) {
+    console.error("Error storing mixed output in Supabase:", storeError);
+    throw storeError;
+  }
+  
+  return {
+    blob: mixedBlob,
+    url: storageUrl
+  };
 };
 
-// Save voice characteristics (mock implementation)
+// Save voice characteristics (real implementation with Supabase)
 export const saveVoiceCharacteristics = async (
   voice: Voice
 ): Promise<boolean> => {
-  // This is a mock implementation
-  // In a real application, you would save to Supabase or another database
-  
   console.log(`Saving voice characteristics for voice ID ${voice.id}:`, voice.characteristics);
   
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  return true;
+  try {
+    const { error } = await supabase
+      .from('voices')
+      .update({
+        tag: voice.tag,
+        characteristics: voice.characteristics,
+        volume: voice.volume,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', voice.id);
+      
+    if (error) {
+      console.error("Error updating voice in Supabase:", error);
+      throw error;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error("Error saving voice characteristics:", error);
+    return false;
+  }
 };
 
 // Download mixed audio
@@ -223,4 +369,21 @@ export const downloadAudio = (audioBlob: Blob, filename: string): void => {
   // Clean up
   URL.revokeObjectURL(url);
   document.body.removeChild(a);
+};
+
+// Generate speech from text using TTS API (mock implementation)
+export const generateSpeechFromText = async (text: string, voice?: Voice): Promise<string> => {
+  console.log(`Generating speech for text: "${text}"`);
+  if (voice) {
+    console.log(`Using voice characteristics:`, voice.characteristics);
+  }
+  
+  // Simulate API call delay
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  
+  // In a real implementation, you would call a TTS API like ElevenLabs
+  // and return a URL to the generated audio
+  
+  // For now, return a placeholder URL
+  return "https://example.com/generated-speech.mp3";
 };

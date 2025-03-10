@@ -13,6 +13,7 @@ import { saveVoiceCharacteristics, analyzeAudioForVoices } from '@/utils/audioHe
 import { useToast } from '@/components/ui/use-toast';
 import { Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 const Index = () => {
   const { toast } = useToast();
@@ -39,13 +40,48 @@ const Index = () => {
     try {
       setIsAnalyzing(true);
       
-      const detectedVoices = await analyzeAudioForVoices(file);
-      setVoices(detectedVoices);
+      // Check if we already have analyzed voices for this audio file in Supabase
+      const { data: existingVoices, error: fetchError } = await supabase
+        .from('voices')
+        .select('*')
+        .eq('audio_id', file.id);
+        
+      if (fetchError) {
+        console.error('Error fetching existing voices:', fetchError);
+        throw fetchError;
+      }
       
-      toast({
-        title: 'Analysis complete',
-        description: `Detected ${detectedVoices.length} voices in the audio`,
-      });
+      let detectedVoices: Voice[];
+      
+      if (existingVoices && existingVoices.length > 0) {
+        // Use existing voices from the database
+        detectedVoices = existingVoices.map(v => ({
+          id: v.id,
+          audioId: v.audio_id,
+          startTime: v.start_time,
+          endTime: v.end_time,
+          tag: v.tag,
+          color: v.color,
+          volume: v.volume,
+          audioUrl: v.audio_url,
+          characteristics: v.characteristics
+        }));
+        
+        toast({
+          title: 'Voices retrieved',
+          description: `Found ${detectedVoices.length} previously analyzed voices`,
+        });
+      } else {
+        // Analyze the audio file for voices
+        detectedVoices = await analyzeAudioForVoices(file);
+        
+        toast({
+          title: 'Analysis complete',
+          description: `Detected ${detectedVoices.length} voices in the audio`,
+        });
+      }
+      
+      setVoices(detectedVoices);
     } catch (error) {
       console.error('Error analyzing voices:', error);
       toast({
@@ -68,7 +104,7 @@ const Index = () => {
         )
       );
       
-      // Save voice characteristics to database (mock)
+      // Save voice characteristics to database
       await saveVoiceCharacteristics(updatedVoice);
     } catch (error) {
       console.error('Error updating voice:', error);
