@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Youtube } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -71,8 +70,8 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       setIsExtracting(true);
       toast({
         title: 'Extracting audio',
-        description: 'Extracting the first 3 minutes of audio from YouTube video...',
-        duration: 10000,
+        description: 'Extracting audio from YouTube video...',
+        duration: 30000,
       });
       
       const result = await extractAudioFromYouTube(validUrl);
@@ -126,7 +125,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
           </div>
           
           <p className="text-xs text-muted-foreground mt-auto">
-            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". The system will extract the first 3 minutes and analyze the voices.
+            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". The system will extract the audio and analyze the voices.
           </p>
         </div>
       </CardContent>
