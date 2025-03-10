@@ -99,25 +99,61 @@ serve(async (req) => {
     // Define colors for the voices
     const voiceColors = ["audio-blue", "audio-purple", "audio-pink", "audio-green", "audio-yellow"];
 
-    // Store audio file metadata
-    const { data: audioFile, error: audioFileError } = await supabase
+    // Check if there's already an audio file with this video ID to avoid duplicates
+    const { data: existingFiles, error: existingFilesError } = await supabase
       .from('audio_files')
-      .insert({
-        name: title,
-        url: `https://www.youtube.com/embed/${videoId}?autoplay=0`,
-        duration: duration,
-        waveform: waveform,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+      .select('id')
+      .ilike('url', `%${videoId}%`);
+      
+    if (existingFilesError) {
+      console.error("Error checking existing files:", existingFilesError);
+    }
+    
+    let audioFileId;
+    
+    // If file exists, use it, otherwise create a new one
+    if (existingFiles && existingFiles.length > 0) {
+      audioFileId = existingFiles[0].id;
+      console.log(`Using existing audio file with ID: ${audioFileId}`);
+      
+      // Update the existing file with new metadata
+      await supabase
+        .from('audio_files')
+        .update({
+          name: title,
+          duration: duration,
+          waveform: waveform,
+        })
+        .eq('id', audioFileId);
+        
+      // Delete existing voice segments to recreate them
+      await supabase
+        .from('voices')
+        .delete()
+        .eq('audio_id', audioFileId);
+    } else {
+      // Store audio file metadata
+      const { data: audioFile, error: audioFileError } = await supabase
+        .from('audio_files')
+        .insert({
+          name: title,
+          url: `https://www.youtube.com/watch?v=${videoId}`,
+          duration: duration,
+          waveform: waveform,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
-    if (audioFileError) {
-      console.error("Error storing audio file metadata:", audioFileError);
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to store audio file metadata' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      if (audioFileError) {
+        console.error("Error storing audio file metadata:", audioFileError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Failed to store audio file metadata' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      audioFileId = audioFile.id;
     }
 
     // Create voice segments based on OpenAI analysis
@@ -144,6 +180,9 @@ serve(async (req) => {
           return Math.random(); // Default to random value
         };
         
+        const startTime = speaker.startTime || (i * (duration / analysis.speakers.length));
+        const endTime = speaker.endTime || ((i + 1) * (duration / analysis.speakers.length));
+        
         const characteristics = {
           pitch: normalizeValue(speaker.characteristics?.pitch),
           tone: normalizeValue(speaker.characteristics?.tone),
@@ -151,17 +190,21 @@ serve(async (req) => {
           clarity: normalizeValue(speaker.characteristics?.clarity)
         };
         
+        // Ensure startTime is an integer for better YouTube embedding
+        const startTimeInt = Math.floor(startTime);
+        
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
           .insert({
-            audio_id: audioFile.id,
+            audio_id: audioFileId,
             tag: speaker.name || `Speaker ${i + 1}`,
-            start_time: speaker.startTime || (i * (duration / analysis.speakers.length)),
-            end_time: speaker.endTime || ((i + 1) * (duration / analysis.speakers.length)),
+            start_time: startTime,
+            end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            audio_url: `https://www.youtube.com/embed/${videoId}?autoplay=0&start=${Math.floor(speaker.startTime || (i * (duration / analysis.speakers.length)))}`,
+            // Format YouTube URL to work well with direct embedding
+            audio_url: `https://www.youtube.com/embed/${videoId}?start=${startTimeInt}&autoplay=0`,
             characteristics: characteristics
           })
           .select()
@@ -181,6 +224,7 @@ serve(async (req) => {
         const segmentLength = Math.floor(duration / numberOfVoices);
         const startTime = i * segmentLength;
         const endTime = startTime + segmentLength;
+        const startTimeInt = Math.floor(startTime);
         
         const characteristics = {
           pitch: Math.random(),
@@ -193,13 +237,14 @@ serve(async (req) => {
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
           .insert({
-            audio_id: audioFile.id,
+            audio_id: audioFileId,
             tag: `Speaker ${i + 1}`,
             start_time: startTime,
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
             volume: 1.0,
-            audio_url: `https://www.youtube.com/embed/${videoId}?autoplay=0&start=${startTime}`,
+            // Format YouTube URL to work well with direct embedding
+            audio_url: `https://www.youtube.com/embed/${videoId}?start=${startTimeInt}&autoplay=0`,
             characteristics: characteristics
           })
           .select()
@@ -215,16 +260,31 @@ serve(async (req) => {
     
     console.log(`Created ${voiceSegments.length} voice segments`);
     
+    // Get the file data after all operations
+    const { data: finalAudioFile, error: fetchError } = await supabase
+      .from('audio_files')
+      .select('*')
+      .eq('id', audioFileId)
+      .single();
+      
+    if (fetchError) {
+      console.error("Error fetching audio file:", fetchError);
+      return new Response(
+        JSON.stringify({ success: false, error: 'Failed to retrieve updated audio file' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     // Return success response with the audio file data
     return new Response(
       JSON.stringify({ 
         success: true, 
         data: {
-          id: audioFile.id,
-          name: audioFile.name,
-          url: audioFile.url,
-          duration: audioFile.duration,
-          waveform: audioFile.waveform,
+          id: finalAudioFile.id,
+          name: finalAudioFile.name,
+          url: finalAudioFile.url,
+          duration: finalAudioFile.duration,
+          waveform: finalAudioFile.waveform,
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

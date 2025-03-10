@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
@@ -8,9 +9,9 @@ import VoiceTag from '@/components/VoiceTag';
 import VoiceMixer from '@/components/VoiceMixer';
 import Footer from '@/components/Footer';
 import { AudioFile, Voice, VoiceCharacteristics } from '@/types';
-import { saveVoiceCharacteristics, analyzeAudioForVoices } from '@/utils/audioHelpers';
+import { saveVoiceCharacteristics, analyzeAudioForVoices, deleteAllVoices } from '@/utils/audioHelpers';
 import { useToast } from '@/components/ui/use-toast';
-import { Home } from 'lucide-react';
+import { Home, RefreshCw, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -43,6 +44,64 @@ const Index = () => {
     setCurrentTime(0);
     
     await analyzeVoices(file);
+  };
+
+  const handleDeleteAllVoices = async () => {
+    if (!audioFile) return;
+    
+    try {
+      setIsLoading(true);
+      toast({
+        title: 'Deleting voices',
+        description: 'Removing all detected voices...',
+      });
+      
+      const success = await deleteAllVoices(audioFile.id);
+      
+      if (success) {
+        setVoices([]);
+        toast({
+          title: 'Voices deleted',
+          description: 'All voices have been removed successfully.',
+        });
+      } else {
+        throw new Error('Failed to delete voices');
+      }
+    } catch (error) {
+      console.error('Error deleting voices:', error);
+      toast({
+        title: 'Delete failed',
+        description: error instanceof Error ? error.message : 'Failed to delete voices',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleReanalyzeAudio = async () => {
+    if (!audioFile) return;
+    
+    try {
+      await handleDeleteAllVoices();
+      await analyzeVoices(audioFile);
+      
+      toast({
+        title: 'Audio reanalyzed',
+        description: 'The audio has been reanalyzed for voices.',
+      });
+    } catch (error) {
+      console.error('Error reanalyzing audio:', error);
+      toast({
+        title: 'Reanalysis failed',
+        description: error instanceof Error ? error.message : 'Failed to reanalyze audio',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteVoice = async (voiceId: string) => {
+    setVoices(prev => prev.filter(voice => voice.id !== voiceId));
   };
 
   const analyzeVoices = async (file: AudioFile) => {
@@ -232,13 +291,38 @@ const Index = () => {
             
             {voices.length > 0 && (
               <div className="space-y-4">
-                <h2 className="text-xl font-semibold">Detected Voices</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold">Detected Voices</h2>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleReanalyzeAudio}
+                      disabled={isLoading || isAnalyzing || !audioFile}
+                      className="gap-1"
+                    >
+                      <RefreshCw className="h-4 w-4" />
+                      Reanalyze
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={handleDeleteAllVoices}
+                      disabled={isLoading || isAnalyzing || !audioFile || voices.length === 0}
+                      className="gap-1 border-red-200 hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete All
+                    </Button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {voices.map((voice) => (
                     <VoiceTag 
                       key={voice.id} 
                       voice={voice} 
                       onVoiceUpdate={handleVoiceUpdate} 
+                      onDelete={handleDeleteVoice}
                     />
                   ))}
                 </div>

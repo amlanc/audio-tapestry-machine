@@ -1,5 +1,6 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
+import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -8,13 +9,15 @@ import { Separator } from '@/components/ui/separator';
 import { Voice } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
 import { saveVoiceCharacteristics } from '@/utils/audioHelpers';
+import { supabase } from '@/integrations/supabase/client';
 
 interface VoiceTagProps {
   voice: Voice;
   onVoiceUpdate: (updatedVoice: Voice) => void;
+  onDelete?: (voiceId: string) => void;
 }
 
-const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
+const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) => {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isCharacteristicsOpen, setIsCharacteristicsOpen] = useState(false);
@@ -58,6 +61,36 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setIsEditing(false);
   };
 
+  const handleDelete = async () => {
+    if (onDelete) {
+      try {
+        // Delete the voice from Supabase first
+        const { error } = await supabase
+          .from('voices')
+          .delete()
+          .eq('id', voice.id);
+          
+        if (error) throw error;
+        
+        onDelete(voice.id);
+        
+        toast({
+          title: "Voice deleted",
+          description: `Voice "${voice.tag}" has been removed.`,
+          duration: 2000,
+        });
+      } catch (error) {
+        console.error("Error deleting voice:", error);
+        toast({
+          title: "Delete failed",
+          description: "Could not delete the voice. Please try again.",
+          variant: "destructive",
+          duration: 3000,
+        });
+      }
+    }
+  };
+
   const handleCharacteristicChange = (key: keyof typeof characteristics, value: number) => {
     setCharacteristics(prev => ({
       ...prev,
@@ -74,14 +107,16 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     console.error("Audio error:", e);
     setAudioError(true);
     setIsPlaying(false);
-    toast({
-      title: "Audio Error",
-      description: "Unable to play audio. Trying alternative playback method.",
-      variant: "destructive",
-    });
     
-    if (voice.audioUrl && voice.audioUrl.includes('youtube.com')) {
+    // If it's a YouTube URL, use the embed approach instead
+    if (voice.audioUrl && (voice.audioUrl.includes('youtube.com') || voice.audioUrl.includes('youtu.be'))) {
       setEmbedVisible(true);
+    } else {
+      toast({
+        title: "Audio Error",
+        description: "Unable to play audio. Trying alternative playback method.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -177,38 +212,49 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
 
   const getYouTubeEmbedUrl = (url: string): string => {
     try {
-      if (url.includes('youtu.be/')) {
-        const videoId = url.split('youtu.be/')[1].split('?')[0];
-        let startTime = 0;
-        
-        if (url.includes('start=')) {
-          const startParam = url.split('start=')[1].split('&')[0];
-          startTime = parseInt(startParam) || 0;
-        }
-        
-        return `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1`;
-      }
+      // Extract video ID and start time from YouTube URL
+      let videoId = '';
+      let startTime = 0;
       
-      if (url.includes('youtube.com')) {
-        if (url.includes('/embed/')) {
-          return url.includes('autoplay=1') ? url : `${url}&autoplay=1`;
-        }
+      if (url.includes('youtu.be/')) {
+        // Format: https://youtu.be/VIDEO_ID?start=123
+        const pathParts = url.split('youtu.be/')[1].split('?');
+        videoId = pathParts[0];
         
-        if (url.includes('watch?v=')) {
-          const videoId = new URL(url).searchParams.get('v');
-          let startTime = 0;
+        if (pathParts.length > 1 && pathParts[1].includes('start=')) {
+          const startParam = new URLSearchParams('?' + pathParts[1]).get('start');
+          startTime = parseInt(startParam || '0');
+        }
+      } else if (url.includes('youtube.com')) {
+        if (url.includes('/embed/')) {
+          // Format: https://www.youtube.com/embed/VIDEO_ID?start=123
+          const pathParts = url.split('/embed/')[1].split('?');
+          videoId = pathParts[0];
           
-          if (url.includes('start=')) {
-            const startParam = new URL(url).searchParams.get('start');
+          if (pathParts.length > 1 && pathParts[1].includes('start=')) {
+            const startParam = new URLSearchParams('?' + pathParts[1]).get('start');
             startTime = parseInt(startParam || '0');
           }
-          
-          return `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1`;
+        } else if (url.includes('watch?v=')) {
+          // Format: https://www.youtube.com/watch?v=VIDEO_ID&start=123
+          const urlObj = new URL(url);
+          videoId = urlObj.searchParams.get('v') || '';
+          const startParam = urlObj.searchParams.get('start');
+          startTime = parseInt(startParam || '0');
         }
+      } else {
+        return url; // Not a YouTube URL, return as is
       }
       
-      return url;
-    } catch {
+      // If we have a video ID but no start time, use the voice start time
+      if (videoId && startTime === 0 && voice.startTime) {
+        startTime = Math.floor(voice.startTime);
+      }
+      
+      // Add a few more parameters for better integration
+      return `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1&rel=0&modestbranding=1`;
+    } catch (error) {
+      console.error("Error parsing YouTube URL:", error);
       return url;
     }
   };
@@ -283,6 +329,18 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
             >
               <Settings2 className="h-4 w-4" />
             </Button>
+            
+            {onDelete && (
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={handleDelete} 
+                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                aria-label="Delete voice"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </CardTitle>
       </CardHeader>
