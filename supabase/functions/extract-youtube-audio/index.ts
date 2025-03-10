@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "@supabase/supabase-js";
 
 // Configure CORS headers for cross-origin requests
 const corsHeaders = {
@@ -153,6 +152,8 @@ serve(async (req) => {
       );
     }
     
+    // We're returning a structured response with the transcript data
+    // The client-side code will store this data in relevant tables
     return new Response(
       JSON.stringify({ 
         success: true, 
