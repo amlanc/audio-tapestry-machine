@@ -61,22 +61,22 @@ serve(async (req) => {
       supabaseServiceRoleKey || ""
     );
 
-    // Initialize OpenAI client for metadata extraction and voice analysis
+    // Initialize OpenAI client for metadata extraction
     const openai = new OpenAI({
       apiKey: openaiApiKey,
     });
 
-    // Get video metadata and analyze potential voices using OpenAI
+    // Get video metadata using OpenAI
     const analysisResponse = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
-          content: "You analyze YouTube videos to extract metadata and detect different voices and speakers. For a simulated voice analysis, generate realistic speaker details."
+          content: "You analyze YouTube videos to extract metadata. Return only factual information, no fictional content."
         },
         {
           role: "user",
-          content: `Analyze this YouTube video with ID: ${videoId}. Provide: 1) title, 2) description, 3) estimatedDuration in seconds (limit to 180 seconds max), and 4) detect 2-4 different speakers/voices with distinct characteristics. For each speaker, provide a speakerId, name, startTime and endTime (in seconds), and characteristics (vocal qualities like pitch, tone, gender, accent). Return as JSON.`
+          content: `Analyze this YouTube video with ID: ${videoId}. Provide: 1) title, 2) estimatedDuration in seconds (limit to 180 seconds max), and 3) detect 2-4 different time segments where different topics might be discussed (don't make up fake speaker names). Return as JSON with fields: title, estimatedDuration, and segments (array with startTime and endTime in seconds, and topic field).`
         }
       ],
       response_format: { type: "json_object" }
@@ -96,7 +96,7 @@ serve(async (req) => {
       () => Math.random() * 0.8 + 0.2
     );
 
-    // Define colors for the voices
+    // Define colors for the segments
     const voiceColors = ["audio-blue", "audio-purple", "audio-pink", "audio-green", "audio-yellow"];
 
     // Check if there's already an audio file with this video ID to avoid duplicates
@@ -163,39 +163,28 @@ serve(async (req) => {
       audioFileId = audioFile.id;
     }
 
-    // Create voice segments based on OpenAI analysis
+    // Create segments based on OpenAI analysis
     const voiceSegments = [];
     
-    if (analysis.speakers && Array.isArray(analysis.speakers)) {
-      for (let i = 0; i < analysis.speakers.length; i++) {
-        const speaker = analysis.speakers[i];
+    if (analysis.segments && Array.isArray(analysis.segments)) {
+      for (let i = 0; i < analysis.segments.length; i++) {
+        const segment = analysis.segments[i];
         
-        // Normalize characteristics to values between 0 and 1
-        const normalizeValue = (value) => {
-          // Convert subjective values to numbers between 0 and 1
-          if (typeof value === 'string') {
-            const lowValues = ['low', 'deep', 'slow', 'quiet', 'soft'];
-            const highValues = ['high', 'sharp', 'fast', 'loud', 'clear'];
-            
-            if (lowValues.some(v => value.toLowerCase().includes(v))) {
-              return Math.random() * 0.4; // Low range: 0 - 0.4
-            } else if (highValues.some(v => value.toLowerCase().includes(v))) {
-              return 0.6 + Math.random() * 0.4; // High range: 0.6 - 1.0
-            }
-          }
-          
-          return Math.random(); // Default to random value
-        };
-        
-        const startTime = speaker.startTime || (i * (duration / analysis.speakers.length));
-        const endTime = speaker.endTime || ((i + 1) * (duration / analysis.speakers.length));
-        
+        // Generate random characteristics for each segment
         const characteristics = {
-          pitch: normalizeValue(speaker.characteristics?.pitch),
-          tone: normalizeValue(speaker.characteristics?.tone),
-          speed: normalizeValue(speaker.characteristics?.speed),
-          clarity: normalizeValue(speaker.characteristics?.clarity)
+          pitch: Math.random(),
+          tone: Math.random(),
+          speed: Math.random(),
+          clarity: Math.random()
         };
+        
+        const startTime = segment.startTime || (i * (duration / analysis.segments.length));
+        const endTime = segment.endTime || ((i + 1) * (duration / analysis.segments.length));
+        
+        // Create a segment label based on the topic or a generic segment number
+        const segmentLabel = segment.topic ? 
+          `Segment ${i+1}: ${segment.topic}` : 
+          `Segment ${i+1}`;
         
         // Ensure startTime is an integer for better YouTube embedding
         const startTimeInt = Math.floor(startTime);
@@ -203,14 +192,14 @@ serve(async (req) => {
         // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
         
-        console.log(`Creating voice segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
+        console.log(`Creating segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
           .insert({
             audio_id: audioFileId,
-            tag: speaker.name || `Speaker ${i + 1}`,
+            tag: segmentLabel,
             start_time: startTime,
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
@@ -224,16 +213,16 @@ serve(async (req) => {
         if (voiceError) {
           console.error("Error storing voice segment:", voiceError);
         } else {
-          console.log(`Created voice segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
+          console.log(`Created segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
           voiceSegments.push(voice);
         }
       }
     } else {
-      // Fallback if no speakers were detected
-      const numberOfVoices = Math.floor(Math.random() * 2) + 2; // 2-3 voices
+      // Fallback if no segments were detected - create generic segments
+      const numberOfSegments = Math.floor(Math.random() * 2) + 2; // 2-3 segments
       
-      for (let i = 0; i < numberOfVoices; i++) {
-        const segmentLength = Math.floor(duration / numberOfVoices);
+      for (let i = 0; i < numberOfSegments; i++) {
+        const segmentLength = Math.floor(duration / numberOfSegments);
         const startTime = i * segmentLength;
         const endTime = startTime + segmentLength;
         const startTimeInt = Math.floor(startTime);
@@ -248,14 +237,14 @@ serve(async (req) => {
         // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
         
-        console.log(`Creating fallback voice at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
+        console.log(`Creating fallback segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
           .insert({
             audio_id: audioFileId,
-            tag: `Speaker ${i + 1}`,
+            tag: `Segment ${i + 1}`,
             start_time: startTime,
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
@@ -269,13 +258,13 @@ serve(async (req) => {
         if (voiceError) {
           console.error("Error storing voice segment:", voiceError);
         } else {
-          console.log(`Created fallback voice segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
+          console.log(`Created fallback segment: ${voice.tag} (${startTime}s - ${endTime}s)`);
           voiceSegments.push(voice);
         }
       }
     }
     
-    console.log(`Created ${voiceSegments.length} voice segments`);
+    console.log(`Created ${voiceSegments.length} segments`);
     
     // Get the file data after all operations
     const { data: finalAudioFile, error: fetchError } = await supabase
