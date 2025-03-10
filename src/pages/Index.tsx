@@ -106,7 +106,15 @@ const Index = () => {
     try {
       setVoices(prev => 
         prev.map(voice => 
-          voice.id === updatedVoice.id ? updatedVoice : voice
+          voice.id === updatedVoice.id ? {
+            ...updatedVoice,
+            characteristics: {
+              pitch: updatedVoice.characteristics.pitch || 0,
+              tone: updatedVoice.characteristics.tone || 0,
+              speed: updatedVoice.characteristics.speed || 0,
+              clarity: updatedVoice.characteristics.clarity || 0
+            }
+          } : voice
         )
       );
       
