@@ -8,7 +8,7 @@ import { Separator } from '@/components/ui/separator';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { AudioFile, Voice } from '@/types';
-import { mixVoices, downloadAudio, generateSpeechFromText } from '@/utils/audioHelpers';
+import { mixVoices, generateSpeechFromText, downloadMixedAudio } from '@/utils/audioHelpers';
 import { useToast } from '@/components/ui/use-toast';
 
 interface VoiceMixerProps {
@@ -73,7 +73,7 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
       const filename = `mixed-voice-${timestamp}.wav`;
       
       // Download the mixed audio
-      downloadAudio(mixResult.blob, filename);
+      downloadMixedAudio(mixResult.blob, filename);
       
       toast({
         title: 'Mix complete',
@@ -107,7 +107,10 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
       // Use the first active voice for TTS characteristics
       const activeVoice = voices.find(v => activeVoices[v.id]);
       
-      const speechUrl = await generateSpeechFromText(ttsText, activeVoice);
+      const speechResult = await generateSpeechFromText(ttsText, activeVoice);
+      if (!speechResult) {
+        throw new Error("Failed to generate speech");
+      }
       
       toast({
         title: 'Speech generated',
@@ -115,7 +118,7 @@ const VoiceMixer: React.FC<VoiceMixerProps> = ({ audioFile, voices, onVoiceUpdat
       });
 
       // Play the generated speech
-      const audio = new Audio(speechUrl);
+      const audio = new Audio(speechResult.url);
       audio.play();
       
     } catch (error) {
