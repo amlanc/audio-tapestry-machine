@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,7 @@ import { Slider } from '@/components/ui/slider';
 import { Separator } from '@/components/ui/separator';
 import { Voice } from '@/types';
 import { useToast } from '@/components/ui/use-toast';
+import { saveVoiceCharacteristics } from '@/utils/audioHelpers';
 
 interface VoiceTagProps {
   voice: Voice;
@@ -24,17 +24,49 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   const [characteristics, setCharacteristics] = useState({ ...voice.characteristics });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
-  // Create dummy audio context for simulation if direct audio isn't available
   const audioContextRef = useRef<AudioContext | null>(null);
   const oscillatorRef = useRef<OscillatorNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
+  const filterRef = useRef<BiquadFilterNode | null>(null);
 
-  const handleSave = () => {
-    onVoiceUpdate({
+  const getWaveformType = (color: string): OscillatorType => {
+    const waveformMap: Record<string, OscillatorType> = {
+      'audio-blue': 'sine',
+      'audio-purple': 'square',
+      'audio-pink': 'sawtooth',
+      'audio-green': 'triangle',
+      'audio-yellow': 'sine',
+    };
+    return waveformMap[color] || 'sine';
+  };
+
+  const handleSave = async () => {
+    const updatedVoice = {
       ...voice,
       tag,
       characteristics,
-    });
+    };
+    
+    onVoiceUpdate(updatedVoice);
+    
+    try {
+      const success = await saveVoiceCharacteristics(updatedVoice);
+      if (success) {
+        toast({
+          title: "Voice updated",
+          description: `"${tag}" voice characteristics saved successfully.`,
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error("Error saving voice:", error);
+      toast({
+        title: "Save failed",
+        description: "Could not save voice characteristics. Please try again.",
+        variant: "destructive",
+        duration: 3000,
+      });
+    }
     
     setIsEditing(false);
   };
@@ -44,6 +76,10 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       ...prev,
       [key]: value,
     }));
+
+    if (isPlaying && oscillatorRef.current && filterRef.current) {
+      updateAudioParameters();
+    }
   };
 
   const handleAudioEnded = () => {
@@ -52,13 +88,16 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   };
 
   useEffect(() => {
-    // Set up audio elements
     if (audioRef.current) {
-      if (voice.audioUrl?.endsWith('.mp3') || voice.audioUrl?.endsWith('.wav')) {
-        // Only set src if it's a proper audio file
+      const isValidAudioUrl = voice.audioUrl && 
+        (voice.audioUrl.endsWith('.mp3') || 
+         voice.audioUrl.endsWith('.wav') || 
+         voice.audioUrl.startsWith('blob:') ||
+         voice.audioUrl.startsWith('data:audio/'));
+
+      if (isValidAudioUrl) {
         audioRef.current.src = voice.audioUrl;
       } else {
-        // Clear src attribute when it's not a valid audio URL
         audioRef.current.removeAttribute('src');
       }
       audioRef.current.currentTime = voice.startTime;
@@ -74,7 +113,12 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         audioContextRef.current = new AudioContext();
+        
         gainNodeRef.current = audioContextRef.current.createGain();
+        filterRef.current = audioContextRef.current.createBiquadFilter();
+        filterRef.current.type = "lowpass";
+        
+        filterRef.current.connect(gainNodeRef.current);
         gainNodeRef.current.connect(audioContextRef.current.destination);
       } catch (err) {
         console.error('Failed to create audio context:', err);
@@ -82,35 +126,38 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     }
   };
 
+  const updateAudioParameters = () => {
+    if (!oscillatorRef.current || !filterRef.current || !gainNodeRef.current) return;
+    
+    const baseFrequency = 220;
+    const frequencyMultiplier = Math.pow(2, characteristics.pitch * 2);
+    oscillatorRef.current.frequency.value = baseFrequency * frequencyMultiplier;
+    
+    const filterFrequency = 500 + (characteristics.tone * 10000);
+    filterRef.current.frequency.value = filterFrequency;
+    filterRef.current.Q.value = 1 + characteristics.clarity * 10;
+    
+    const volumeValue = isMuted ? 0 : 0.3 * voice.volume;
+    gainNodeRef.current.gain.value = volumeValue;
+  };
+
   const playSimulatedAudio = () => {
     initAudioContext();
-    if (!audioContextRef.current || !gainNodeRef.current) return;
+    if (!audioContextRef.current || !filterRef.current || !gainNodeRef.current) return;
     
     try {
-      // Stop any existing oscillator
       stopSimulatedAudio();
       
-      // Create new oscillator
       oscillatorRef.current = audioContextRef.current.createOscillator();
+      oscillatorRef.current.type = getWaveformType(voice.color);
       
-      // Set frequency based on pitch characteristic (between 200-800 Hz)
-      const baseFrequency = 300;
-      const frequencyRange = 500;
-      const frequency = baseFrequency + (characteristics.pitch * frequencyRange);
-      oscillatorRef.current.frequency.value = frequency;
+      oscillatorRef.current.connect(filterRef.current);
       
-      // Set tone/type
-      oscillatorRef.current.type = 'sine';
+      updateAudioParameters();
       
-      // Set volume
-      gainNodeRef.current.gain.value = isMuted ? 0 : 0.2;
-      
-      // Connect and start
-      oscillatorRef.current.connect(gainNodeRef.current);
       oscillatorRef.current.start();
       
-      // Schedule stop based on voice duration
-      const duration = voice.endTime - voice.startTime;
+      const duration = Math.min(voice.endTime - voice.startTime, 5);
       setTimeout(() => {
         stopSimulatedAudio();
         setIsPlaying(false);
@@ -135,7 +182,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
 
   const togglePlayback = () => {
     if (isPlaying) {
-      // Stop playback
       if (audioRef.current && audioRef.current.src) {
         audioRef.current.pause();
         audioRef.current.currentTime = voice.startTime;
@@ -143,9 +189,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       stopSimulatedAudio();
       setIsPlaying(false);
     } else {
-      // Start playback
       if (audioRef.current && audioRef.current.src) {
-        // Try to play the actual audio if we have a source
         audioRef.current.currentTime = voice.startTime;
         const playPromise = audioRef.current.play();
         
@@ -156,7 +200,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
             console.error("Error playing audio:", error);
             toast({
               title: "Using simulated audio",
-              description: "Could not play the original audio. Using a simulated voice instead.",
+              description: "Playing a synthesized representation of this voice.",
               duration: 2000,
             });
             playSimulatedAudio();
@@ -164,7 +208,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
           });
         }
       } else {
-        // Use simulated audio when no source is available
         playSimulatedAudio();
         setIsPlaying(true);
       }
@@ -175,7 +218,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setIsMuted(!isMuted);
     
     if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = isMuted ? 0.2 : 0;
+      gainNodeRef.current.gain.value = isMuted ? 0.3 * voice.volume : 0;
     }
     
     if (audioRef.current) {
