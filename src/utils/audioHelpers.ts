@@ -1,3 +1,4 @@
+
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -81,7 +82,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
   }
 };
 
-// Analyze audio file to detect voices and create actual audio segments
+// Analyze audio file to detect voices and create segments
 export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice[]> => {
   console.log(`Analyzing audio file: ${audioFile.name}`);
   
