@@ -1,4 +1,3 @@
-
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,7 +11,7 @@ export const generateRandomWaveform = (length: number = 100): number[] => {
   return Array.from({ length }, () => Math.random() * 0.8 + 0.2);
 };
 
-// Extract audio from YouTube using YouTube API and store in Supabase
+// Extract audio from YouTube using Supabase Edge Function
 export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<AudioFile | null> => {
   console.log(`Extracting audio from YouTube URL: ${youtubeUrl}`);
   
@@ -23,60 +22,31 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       throw new Error("Invalid YouTube URL");
     }
     
-    // Extract video ID from the URL
-    let videoId = '';
-    if (youtubeUrl.includes("youtu.be")) {
-      videoId = youtubeUrl.split("/").pop() || '';
-    } else {
-      const url = new URL(youtubeUrl);
-      videoId = url.searchParams.get("v") || '';
+    // Call the Supabase Edge Function to extract audio
+    const { data, error } = await supabase.functions.invoke('extract-youtube-audio', {
+      body: { youtubeUrl }
+    });
+    
+    if (error) {
+      console.error("Error invoking extract-youtube-audio function:", error);
+      throw new Error(`Failed to extract audio: ${error.message}`);
     }
     
-    if (!videoId) {
-      throw new Error("Could not extract video ID from URL");
+    if (!data || !data.success) {
+      throw new Error(data?.error || "Failed to extract audio from YouTube");
     }
     
-    // For demo purposes, we'll use a fixed audio sample
-    // In a real implementation, we'd extract audio from the YouTube video
-    const audioUrl = "https://assets.mixkit.co/active_storage/sfx/939/939-preview.mp3";
-    
-    // Set a realistic duration for the demo
-    const duration = 180; // 3 minutes
-    
-    // Create a mock audio file with the video details and actual audio URL
-    const mockAudioFile: AudioFile = {
-      id: generateId(),
-      name: `YouTube Video ${videoId}`,
+    // Create an audio file object from the edge function response
+    const audioFile: AudioFile = {
+      id: data.data.id,
+      name: data.data.name,
       file: null,
-      url: audioUrl,
-      duration: duration,
-      waveform: generateRandomWaveform(duration),
+      url: data.data.url,
+      duration: data.data.duration,
+      waveform: data.data.waveform,
     };
     
-    // Store the audio file in Supabase
-    const { data: storedAudio, error: storeError } = await supabase
-      .from('audio_files')
-      .insert({
-        name: mockAudioFile.name,
-        url: mockAudioFile.url,
-        duration: mockAudioFile.duration,
-        waveform: mockAudioFile.waveform
-      })
-      .select()
-      .single();
-      
-    if (storeError) {
-      console.error("Error storing audio in Supabase:", storeError);
-      throw new Error("Failed to store audio file");
-    }
-    
-    // Update the mockAudioFile with the stored ID
-    mockAudioFile.id = storedAudio.id;
-    
-    // Log success
-    console.log("Successfully extracted audio from YouTube and stored in Supabase");
-    
-    return mockAudioFile;
+    return audioFile;
   } catch (error) {
     console.error("Error extracting audio from YouTube:", error);
     throw error;

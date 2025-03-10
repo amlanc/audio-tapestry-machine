@@ -29,7 +29,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       }
       // Handle youtube.com format
       if (urlObj.hostname.includes('youtube.com')) {
-        const videoId = urlObj.searchParams.get('v');
+        const videoId = urlObj.searchParams.get("v");
         if (!videoId) return null;
         // Ensure autoplay is disabled
         urlObj.searchParams.set('autoplay', '0');
@@ -71,12 +71,11 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       setIsExtracting(true);
       toast({
         title: 'Extracting audio',
-        description: 'Extracting the first 3 minutes of audio from YouTube...',
-        duration: 5000,
+        description: 'Extracting the first 3 minutes of audio from YouTube video...',
+        duration: 10000,
       });
       
       const result = await extractAudioFromYouTube(validUrl);
-      setIsExtracting(false);
       
       if (!result) {
         throw new Error('Failed to extract audio');
@@ -86,16 +85,17 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       
       toast({
         title: 'Audio extracted',
-        description: 'Successfully extracted 3 minutes of audio from YouTube video',
+        description: 'Successfully extracted audio from YouTube video',
       });
     } catch (error) {
-      setIsExtracting(false);
       console.error('Error extracting audio from YouTube:', error);
       toast({
         title: 'Error extracting audio',
         description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
       });
+    } finally {
+      setIsExtracting(false);
     }
   };
 
