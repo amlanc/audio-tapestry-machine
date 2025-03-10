@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
@@ -7,7 +8,7 @@ import AudioWaveform from '@/components/AudioWaveform';
 import VoiceTag from '@/components/VoiceTag';
 import VoiceMixer from '@/components/VoiceMixer';
 import Footer from '@/components/Footer';
-import { AudioFile, Voice } from '@/types';
+import { AudioFile, Voice, VoiceCharacteristics } from '@/types';
 import { saveVoiceCharacteristics, analyzeAudioForVoices } from '@/utils/audioHelpers';
 import { useToast } from '@/components/ui/use-toast';
 import { Home } from 'lucide-react';
@@ -49,17 +50,31 @@ const Index = () => {
       let detectedVoices: Voice[];
       
       if (existingVoices && existingVoices.length > 0) {
-        detectedVoices = existingVoices.map(v => ({
-          id: v.id,
-          audioId: v.audio_id,
-          startTime: v.start_time,
-          endTime: v.end_time,
-          tag: v.tag,
-          color: v.color,
-          volume: v.volume,
-          audioUrl: v.audio_url,
-          characteristics: v.characteristics
-        }));
+        detectedVoices = existingVoices.map(v => {
+          // Make sure to cast characteristics to the correct type
+          const characteristics: VoiceCharacteristics = {
+            pitch: typeof v.characteristics === 'object' && v.characteristics !== null ? 
+              (v.characteristics as any).pitch || 0 : 0,
+            tone: typeof v.characteristics === 'object' && v.characteristics !== null ? 
+              (v.characteristics as any).tone || 0 : 0,
+            speed: typeof v.characteristics === 'object' && v.characteristics !== null ? 
+              (v.characteristics as any).speed || 0 : 0,
+            clarity: typeof v.characteristics === 'object' && v.characteristics !== null ? 
+              (v.characteristics as any).clarity || 0 : 0
+          };
+          
+          return {
+            id: v.id,
+            audioId: v.audio_id,
+            startTime: v.start_time,
+            endTime: v.end_time,
+            tag: v.tag,
+            color: v.color,
+            volume: v.volume,
+            audioUrl: v.audio_url,
+            characteristics: characteristics
+          };
+        });
         
         toast({
           title: 'Voices retrieved',
