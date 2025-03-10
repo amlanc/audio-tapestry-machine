@@ -72,11 +72,11 @@ serve(async (req) => {
       messages: [
         {
           role: "system",
-          content: "You analyze YouTube videos to extract metadata. Return only factual information, no fictional content."
+          content: "Analyze YouTube videos to extract accurate metadata. Return only factual information about the video's chapters or segments. Do not make up or guess segment names or timestamps if they're not clearly available in the video metadata."
         },
         {
           role: "user",
-          content: `Analyze this YouTube video with ID: ${videoId}. Provide: 1) title, 2) estimatedDuration in seconds (limit to 180 seconds max), and 3) detect 2-4 different time segments where different topics might be discussed (don't make up fake speaker names). Return as JSON with fields: title, estimatedDuration, and segments (array with startTime and endTime in seconds, and topic field).`
+          content: `Extract chapter information for YouTube video with ID: ${videoId}. ONLY return chapters/timestamps that are explicitly available in the video's description or chapter markers. If no explicit timestamps are available, return an empty array for segments. Return as JSON with fields: title, estimatedDuration, and segments (array with startTime, endTime, and label fields). DO NOT MAKE UP OR GUESS segment information.`
         }
       ],
       response_format: { type: "json_object" }
@@ -163,10 +163,11 @@ serve(async (req) => {
       audioFileId = audioFile.id;
     }
 
-    // Create segments based on OpenAI analysis
+    // Create segments based on analysis
     const voiceSegments = [];
     
-    if (analysis.segments && Array.isArray(analysis.segments)) {
+    if (analysis.segments && Array.isArray(analysis.segments) && analysis.segments.length > 0) {
+      // Use the actual segments from the video metadata
       for (let i = 0; i < analysis.segments.length; i++) {
         const segment = analysis.segments[i];
         
@@ -178,13 +179,11 @@ serve(async (req) => {
           clarity: Math.random()
         };
         
-        const startTime = segment.startTime || (i * (duration / analysis.segments.length));
-        const endTime = segment.endTime || ((i + 1) * (duration / analysis.segments.length));
+        const startTime = segment.startTime || 0;
+        const endTime = segment.endTime || (startTime + 30); // Default 30 seconds if no end time
         
-        // Create a segment label based on the topic or a generic segment number
-        const segmentLabel = segment.topic ? 
-          `Segment ${i+1}: ${segment.topic}` : 
-          `Segment ${i+1}`;
+        // Use the actual segment label if available, otherwise use generic Voice label
+        const segmentLabel = segment.label || `Voice ${i+1}`;
         
         // Ensure startTime is an integer for better YouTube embedding
         const startTimeInt = Math.floor(startTime);
@@ -192,7 +191,7 @@ serve(async (req) => {
         // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
         
-        console.log(`Creating segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
+        console.log(`Creating segment "${segmentLabel}" at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
@@ -218,7 +217,7 @@ serve(async (req) => {
         }
       }
     } else {
-      // Fallback if no segments were detected - create generic segments
+      // Fallback: create generic voice segments if no segments were found in metadata
       const numberOfSegments = Math.floor(Math.random() * 2) + 2; // 2-3 segments
       
       for (let i = 0; i < numberOfSegments; i++) {
@@ -234,17 +233,20 @@ serve(async (req) => {
           clarity: Math.random(),
         };
         
+        // Use generic Voice label
+        const voiceLabel = `Voice ${i + 1}`;
+        
         // Use direct YouTube watch URL with timestamp
         const youtubeWatchUrl = `https://www.youtube.com/watch?v=${videoId}&t=${startTimeInt}`;
         
-        console.log(`Creating fallback segment at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
+        console.log(`Creating fallback segment ${voiceLabel} at ${startTimeInt}s with URL: ${youtubeWatchUrl}`);
         
         // Store voice segment in Supabase
         const { data: voice, error: voiceError } = await supabase
           .from('voices')
           .insert({
             audio_id: audioFileId,
-            tag: `Segment ${i + 1}`,
+            tag: voiceLabel,
             start_time: startTime,
             end_time: endTime,
             color: voiceColors[i % voiceColors.length],
