@@ -17,6 +17,7 @@ export interface Voice {
   color: string;
   volume: number;
   characteristics: VoiceCharacteristics;
+  audioUrl: string; // Add this new field
 }
 
 export interface VoiceCharacteristics {

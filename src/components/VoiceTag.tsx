@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Tag, Edit2, Settings2, Save } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Tag, Edit2, Settings2, Save, Play, Square } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -16,8 +16,10 @@ interface VoiceTagProps {
 const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isCharacteristicsOpen, setIsCharacteristicsOpen] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
   const [tag, setTag] = useState(voice.tag);
   const [characteristics, setCharacteristics] = useState({ ...voice.characteristics });
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const handleSave = () => {
     onVoiceUpdate({
@@ -34,6 +36,22 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       ...prev,
       [key]: value,
     }));
+  };
+
+  const togglePlayback = () => {
+    if (!audioRef.current) return;
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    } else {
+      audioRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
   };
   
   return (
@@ -55,6 +73,19 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
           </div>
           
           <div className="flex items-center gap-1">
+            <Button 
+              size="sm" 
+              variant="ghost" 
+              onClick={togglePlayback} 
+              className="h-7 w-7 p-0"
+            >
+              {isPlaying ? (
+                <Square className="h-4 w-4" />
+              ) : (
+                <Play className="h-4 w-4" />
+              )}
+            </Button>
+
             {isEditing ? (
               <Button size="sm" variant="ghost" onClick={handleSave} className="h-7 w-7 p-0">
                 <Save className="h-4 w-4" />
@@ -81,6 +112,13 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         <div className="text-xs text-muted-foreground mb-3">
           {Math.floor(voice.startTime / 60)}:{(voice.startTime % 60).toString().padStart(2, '0')} - {Math.floor(voice.endTime / 60)}:{(voice.endTime % 60).toString().padStart(2, '0')}
         </div>
+
+        <audio 
+          ref={audioRef}
+          src={voice.audioUrl} 
+          onEnded={handleAudioEnded}
+          style={{ display: 'none' }}
+        />
         
         {isCharacteristicsOpen && (
           <div className="mt-3 space-y-3">
