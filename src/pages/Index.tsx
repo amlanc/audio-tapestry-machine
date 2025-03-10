@@ -162,7 +162,8 @@ const Index = () => {
       
       <Footer />
 
-      <style jsx global>{`
+      <style>
+        {`
         .highlight-pulse {
           animation: pulse 2s ease-in-out;
         }
@@ -172,7 +173,8 @@ const Index = () => {
           70% { box-shadow: 0 0 0 10px rgba(147, 51, 234, 0); }
           100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
         }
-      `}</style>
+        `}
+      </style>
     </div>
   );
 };
