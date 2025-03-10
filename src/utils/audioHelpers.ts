@@ -1,4 +1,3 @@
-
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -37,7 +36,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
     }
     
     // Use a reliable audio sample that will definitely work in browsers
-    const audioUrl = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+    const audioUrl = "https://assets.mixkit.co/active_storage/sfx/939/939-preview.mp3";
     
     // Set a realistic duration
     const duration = 30; // 30 seconds sample
@@ -95,7 +94,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
   const mockVoices: Voice[] = [];
   
   // Use a reliable audio sample that will definitely work in browsers
-  const reliableAudioUrl = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+  const reliableAudioUrl = "https://assets.mixkit.co/active_storage/sfx/939/939-preview.mp3";
   
   // Divide the audio into segments for different "voices"
   const segmentLength = Math.floor(audioFile.duration / (numberOfVoices + 1));

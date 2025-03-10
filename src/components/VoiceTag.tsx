@@ -68,34 +68,32 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setIsPlaying(false);
   };
 
-  // Use a reliable demo audio sample
-  const DEMO_AUDIO_URL = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+  // Fixed demo audio URL that is publicly accessible and works in browsers
+  const DEMO_AUDIO_URL = "https://assets.mixkit.co/active_storage/sfx/939/939-preview.mp3";
 
   useEffect(() => {
-    // Clean up previous audio element if it exists
+    // Clean up previous audio element
     if (audioRef.current) {
       audioRef.current.pause();
-      audioRef.current.src = '';
-      audioRef.current.load();
+      audioRef.current.removeEventListener('ended', handleAudioEnded);
+      audioRef.current.removeEventListener('error', handleError);
     }
     
-    // Create new audio element
+    // Create a new audio element
     const audio = new Audio();
     audioRef.current = audio;
     
-    // Reset audio error state
+    // Reset error state
     setAudioError(false);
     
-    // Set the reliable audio source
-    audio.src = DEMO_AUDIO_URL;
-    
-    // Add event listeners  
+    // Set up event handlers
     const handleError = (e: Event) => {
       console.error("Audio error:", e);
       setAudioError(true);
+      setIsPlaying(false);
       toast({
         title: "Audio Error",
-        description: "Unable to load audio. Using a demonstration sound.",
+        description: "Unable to play audio. Please try again later.",
         variant: "destructive",
       });
     };
@@ -103,52 +101,42 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleAudioEnded);
     
+    // We don't set the src until we actually play to avoid unnecessary errors
+    
     return () => {
-      // Clean up event listeners
+      audio.pause();
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleAudioEnded);
-      
-      // Clean up audio element
-      audio.pause();
-      audio.src = '';
     };
   }, [voice.id, toast]);
 
   const togglePlayback = () => {
     if (!audioRef.current) {
-      toast({
-        title: "Playback error",
-        description: "Audio element not available. Please try again later.",
-        variant: "destructive",
-      });
       return;
     }
     
-    // If we're already playing, stop
+    // If already playing, pause
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
       return;
     }
     
-    // Inform user we're using a demo sound
-    toast({
-      title: "Using demo audio",
-      description: "Playing a demonstration sound.",
-      duration: 3000,
-    });
-    
-    // Simple playback approach
+    // Set the source right before playing to avoid unnecessary network requests
+    audioRef.current.src = DEMO_AUDIO_URL;
     audioRef.current.volume = isMuted ? 0 : 1;
+    
+    // Play the audio
     audioRef.current.play()
       .then(() => {
         setIsPlaying(true);
       })
       .catch(error => {
         console.error("Error playing audio:", error);
+        setAudioError(true);
         toast({
-          title: "Audio playback failed",
-          description: "Could not play the audio. This may be due to browser restrictions.",
+          title: "Playback error",
+          description: "Could not play the audio sample. Please try again later.",
           variant: "destructive",
         });
       });
