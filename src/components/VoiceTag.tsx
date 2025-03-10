@@ -68,8 +68,17 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setIsPlaying(false);
   };
 
-  // Fixed demo audio URL that is publicly accessible and works in browsers
-  const DEMO_AUDIO_URL = "https://assets.mixkit.co/active_storage/sfx/939/939-preview.mp3";
+  // Define the handleError function before using it
+  const handleError = (e: Event) => {
+    console.error("Audio error:", e);
+    setAudioError(true);
+    setIsPlaying(false);
+    toast({
+      title: "Audio Error",
+      description: "Unable to play audio. Please try again later.",
+      variant: "destructive",
+    });
+  };
 
   useEffect(() => {
     // Clean up previous audio element
@@ -87,17 +96,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setAudioError(false);
     
     // Set up event handlers
-    const handleError = (e: Event) => {
-      console.error("Audio error:", e);
-      setAudioError(true);
-      setIsPlaying(false);
-      toast({
-        title: "Audio Error",
-        description: "Unable to play audio. Please try again later.",
-        variant: "destructive",
-      });
-    };
-    
     audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleAudioEnded);
     
@@ -123,23 +121,32 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     }
     
     // Set the source right before playing to avoid unnecessary network requests
-    audioRef.current.src = DEMO_AUDIO_URL;
-    audioRef.current.volume = isMuted ? 0 : 1;
-    
-    // Play the audio
-    audioRef.current.play()
-      .then(() => {
-        setIsPlaying(true);
-      })
-      .catch(error => {
-        console.error("Error playing audio:", error);
-        setAudioError(true);
-        toast({
-          title: "Playback error",
-          description: "Could not play the audio sample. Please try again later.",
-          variant: "destructive",
+    if (voice.audioUrl) {
+      audioRef.current.src = voice.audioUrl;
+      audioRef.current.volume = isMuted ? 0 : 1;
+      
+      // Play the audio
+      audioRef.current.play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch(error => {
+          console.error("Error playing audio:", error);
+          setAudioError(true);
+          toast({
+            title: "Playback error",
+            description: "Could not play the audio sample. Please try again later.",
+            variant: "destructive",
+          });
         });
+    } else {
+      setAudioError(true);
+      toast({
+        title: "Missing audio",
+        description: "No audio source available for this voice.",
+        variant: "destructive",
       });
+    }
   };
 
   const toggleMute = () => {

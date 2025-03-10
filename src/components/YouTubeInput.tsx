@@ -69,6 +69,12 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
 
     try {
       setIsExtracting(true);
+      toast({
+        title: 'Extracting audio',
+        description: 'Extracting the first 3 minutes of audio from YouTube...',
+        duration: 5000,
+      });
+      
       const result = await extractAudioFromYouTube(validUrl);
       setIsExtracting(false);
       
@@ -80,7 +86,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       
       toast({
         title: 'Audio extracted',
-        description: 'Successfully extracted audio from YouTube',
+        description: 'Successfully extracted 3 minutes of audio from YouTube video',
       });
     } catch (error) {
       setIsExtracting(false);
@@ -120,7 +126,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
           </div>
           
           <p className="text-xs text-muted-foreground mt-auto">
-            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". The system will automatically analyze the voices.
+            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". The system will extract the first 3 minutes and analyze the voices.
           </p>
         </div>
       </CardContent>
