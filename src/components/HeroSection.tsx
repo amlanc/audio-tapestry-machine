@@ -1,29 +1,27 @@
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Mic, AudioWaveform, Upload, Tag } from 'lucide-react';
+import { Mic, AudioWaveform, Upload, Tag, Youtube } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/components/ui/use-toast';
 
 const HeroSection: React.FC = () => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleUploadClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      // Navigate to the app page when a file is selected
-      navigate('/');
-    }
+  const handleYouTubeClick = () => {
+    // Navigate to the app page with a query parameter to indicate YouTube input
+    navigate('/app?source=youtube');
+    
+    toast({
+      title: "YouTube mode activated",
+      description: "You can now paste a YouTube URL to extract audio",
+    });
   };
 
   const handleTryDemo = () => {
     // For demo purposes, navigate to the app page directly
-    navigate('/');
+    navigate('/app');
     
     toast({
       title: "Demo mode activated",
@@ -46,17 +44,10 @@ const HeroSection: React.FC = () => {
             Discover hidden patterns in audio, separate voices, and create custom mixes with advanced AI technology.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="gap-2" onClick={handleUploadClick}>
-              <Upload className="w-5 h-5" />
-              Upload Audio
+            <Button size="lg" className="gap-2" onClick={handleYouTubeClick}>
+              <Youtube className="w-5 h-5 text-red-500" />
+              Add YouTube URL
             </Button>
-            <input 
-              ref={fileInputRef}
-              type="file" 
-              accept="audio/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
             <Button size="lg" variant="outline" className="gap-2" onClick={handleTryDemo}>
               <AudioWaveform className="w-5 h-5" />
               Try Demo

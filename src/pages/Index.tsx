@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
 import AudioUploader from '@/components/AudioUploader';
 import YouTubeInput from '@/components/YouTubeInput';
@@ -22,6 +22,8 @@ const Index = () => {
   const [currentTime, setCurrentTime] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const youtubeInputRef = useRef<HTMLDivElement>(null);
+  const location = useLocation();
 
   // Handle audio file upload or extraction
   const handleAudioFile = (file: AudioFile) => {
@@ -73,6 +75,23 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [audioFile]);
 
+  // Check for source query parameter
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const source = searchParams.get('source');
+    
+    if (source === 'youtube' && youtubeInputRef.current) {
+      // Scroll to YouTube input
+      youtubeInputRef.current.scrollIntoView({ behavior: 'smooth' });
+      
+      // Add subtle highlight animation
+      youtubeInputRef.current.classList.add('highlight-pulse');
+      setTimeout(() => {
+        youtubeInputRef.current?.classList.remove('highlight-pulse');
+      }, 2000);
+    }
+  }, [location.search]);
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -92,7 +111,9 @@ const Index = () => {
           <div className="lg:col-span-2 space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <AudioUploader onAudioUploaded={handleAudioFile} isLoading={isLoading || isAnalyzing} />
-              <YouTubeInput onAudioExtracted={handleAudioFile} isLoading={isLoading || isAnalyzing} />
+              <div ref={youtubeInputRef} className="transition-all">
+                <YouTubeInput onAudioExtracted={handleAudioFile} isLoading={isLoading || isAnalyzing} />
+              </div>
             </div>
             
             {audioFile && (
@@ -140,6 +161,18 @@ const Index = () => {
       </main>
       
       <Footer />
+
+      <style jsx global>{`
+        .highlight-pulse {
+          animation: pulse 2s ease-in-out;
+        }
+        
+        @keyframes pulse {
+          0% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0.4); }
+          70% { box-shadow: 0 0 0 10px rgba(147, 51, 234, 0); }
+          100% { box-shadow: 0 0 0 0 rgba(147, 51, 234, 0); }
+        }
+      `}</style>
     </div>
   );
 };
