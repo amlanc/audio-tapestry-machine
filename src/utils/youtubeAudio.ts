@@ -56,7 +56,7 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       console.log("Saved audio file data to Supabase");
     } catch (error) {
       console.error("Error saving audio file data:", error);
-      // Continue even if saving data fails
+      // Continue even if saving metadata fails
     }
     
     console.log("Successfully extracted audio:", audioFile.name);

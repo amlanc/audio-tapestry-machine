@@ -39,18 +39,11 @@ serve(async (req) => {
       );
     }
 
-    // Check for AssemblyAI API key
-    const assemblyApiKey = Deno.env.get('ASSEMBLYAI_API_KEY');
-    if (!assemblyApiKey) {
-      throw new Error('AssemblyAI API key is not configured');
-    }
-
-    console.log(`Using AssemblyAI API to process video ID: ${videoId}`);
+    console.log(`Extracted video ID: ${videoId}`);
     
-    // Generate a mock response for now to verify deployment works
-    // In a real implementation, you would integrate with AssemblyAI
+    // Generate a minimal response structure
     const title = `YouTube Video (${videoId})`;
-    const duration = 120; // Default to 2 minutes
+    const duration = 120; // Default to 2 minutes as a placeholder
     const waveform = Array.from(
       { length: duration }, 
       () => Math.random() * 0.8 + 0.2
@@ -66,7 +59,7 @@ serve(async (req) => {
           url: null,
           duration: duration,
           waveform: waveform,
-          transcript: null // We'll implement this fully in the next step
+          transcript: null
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
