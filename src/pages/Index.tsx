@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
@@ -14,6 +13,19 @@ import { useToast } from '@/components/ui/use-toast';
 import { Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
+
+const sanitizeYouTubeUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    if (urlObj.hostname.includes('youtube.com') || urlObj.hostname === 'youtu.be') {
+      urlObj.searchParams.set('autoplay', '0');
+      return urlObj.toString();
+    }
+    return url;
+  } catch {
+    return url;
+  }
+};
 
 const Index = () => {
   const { toast } = useToast();
@@ -55,7 +67,6 @@ const Index = () => {
       
       if (existingVoices && existingVoices.length > 0) {
         detectedVoices = existingVoices.map(v => {
-          // Make sure to cast characteristics to the correct type
           const characteristics: VoiceCharacteristics = {
             pitch: typeof v.characteristics === 'object' && v.characteristics !== null ? 
               (v.characteristics as any).pitch || 0 : 0,
@@ -75,7 +86,7 @@ const Index = () => {
             tag: v.tag,
             color: v.color,
             volume: v.volume,
-            audioUrl: v.audio_url || file.url, // Ensure we have a valid audio URL
+            audioUrl: v.audio_url || file.url,
             characteristics: characteristics
           };
         });
@@ -162,6 +173,19 @@ const Index = () => {
       }, 2000);
     }
   }, [location.search]);
+
+  useEffect(() => {
+    const iframes = document.querySelectorAll('iframe');
+    
+    iframes.forEach(iframe => {
+      if (iframe.src && (
+        iframe.src.includes('youtube.com') || 
+        iframe.src.includes('youtu.be')
+      )) {
+        iframe.src = sanitizeYouTubeUrl(iframe.src);
+      }
+    });
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

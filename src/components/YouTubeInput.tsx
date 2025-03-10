@@ -33,6 +33,12 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
         if (!videoId) return null;
         // Ensure autoplay is disabled
         urlObj.searchParams.set('autoplay', '0');
+        
+        // Make sure to disable any embedded autoplay as well
+        if (urlObj.pathname.includes('/embed/')) {
+          return `https://www.youtube.com/watch?v=${videoId}&autoplay=0`;
+        }
+        
         return urlObj.toString();
       }
       return null;
