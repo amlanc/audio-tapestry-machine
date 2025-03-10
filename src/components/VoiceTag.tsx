@@ -79,67 +79,85 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   };
 
   useEffect(() => {
-    if (audioRef.current) {
-      // Reset state when voice changes
-      setAudioLoaded(false);
-      setAudioError(false);
+    // Create audio element if it doesn't exist
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    
+    const audio = audioRef.current;
+    
+    // Reset state when voice changes
+    setAudioLoaded(false);
+    setAudioError(false);
+    
+    if (voice.audioUrl) {
+      // Make sure we have a valid URL
+      const validUrl = voice.audioUrl.startsWith('http') ? voice.audioUrl : null;
       
-      if (voice.audioUrl) {
-        // Make sure we have a valid URL
-        const validUrl = voice.audioUrl.startsWith('http') ? voice.audioUrl : null;
+      if (validUrl) {
+        console.log(`Set audio source to: ${validUrl}`);
+        audio.src = validUrl;
         
-        if (validUrl) {
-          console.log(`Set audio source to: ${validUrl}`);
-          audioRef.current.src = validUrl;
-          
-          // Pre-load the audio to avoid issues when playing
-          audioRef.current.load();
+        // Pre-load the audio to avoid issues when playing
+        audio.load();
 
-          // Add event listeners
-          const audio = audioRef.current;
-          
-          const handleCanPlayThrough = () => {
-            console.log("Audio can play through");
-            setAudioLoaded(true);
-            setAudioError(false);
-          };
-          
-          const handleError = (e: ErrorEvent) => {
-            console.error("Audio error:", e);
-            setAudioError(true);
-            setAudioLoaded(false);
-          };
-          
-          audio.addEventListener('canplaythrough', handleCanPlayThrough, { passive: true });
-          audio.addEventListener('error', handleError as EventListener, { passive: true });
-          audio.addEventListener('timeupdate', handleTimeUpdate, { passive: true });
-          audio.addEventListener('ended', handleAudioEnded, { passive: true });
-
-          return () => {
-            audio.removeEventListener('canplaythrough', handleCanPlayThrough);
-            audio.removeEventListener('error', handleError as EventListener);
-            audio.removeEventListener('timeupdate', handleTimeUpdate);
-            audio.removeEventListener('ended', handleAudioEnded);
-            
-            if (audioContextRef.current && sourceNodeRef.current) {
-              try {
-                sourceNodeRef.current.disconnect();
-                if (gainNodeRef.current) gainNodeRef.current.disconnect();
-                if (filterRef.current) filterRef.current.disconnect();
-              } catch (err) {
-                console.error('Error cleaning up audio nodes:', err);
-              }
-            }
-          };
-        } else {
+        // Add event listeners  
+        const handleCanPlayThrough = () => {
+          console.log("Audio can play through");
+          setAudioLoaded(true);
+          setAudioError(false);
+        };
+        
+        const handleError = (e: Event) => {
+          console.error("Audio error:", e);
           setAudioError(true);
-          console.error("Invalid audio URL:", voice.audioUrl);
-        }
+          setAudioLoaded(false);
+        };
+        
+        audio.addEventListener('canplaythrough', handleCanPlayThrough);
+        audio.addEventListener('error', handleError);
+        audio.addEventListener('timeupdate', handleTimeUpdate);
+        audio.addEventListener('ended', handleAudioEnded);
+        
+        // Force a load attempt
+        audio.load();
+
+        return () => {
+          audio.removeEventListener('canplaythrough', handleCanPlayThrough);
+          audio.removeEventListener('error', handleError);
+          audio.removeEventListener('timeupdate', handleTimeUpdate);
+          audio.removeEventListener('ended', handleAudioEnded);
+          
+          // Clean up audio context if it exists
+          if (audioContextRef.current && sourceNodeRef.current) {
+            try {
+              sourceNodeRef.current.disconnect();
+              if (gainNodeRef.current) gainNodeRef.current.disconnect();
+              if (filterRef.current) filterRef.current.disconnect();
+            } catch (err) {
+              console.error('Error cleaning up audio nodes:', err);
+            }
+          }
+        };
       } else {
         setAudioError(true);
-        console.error("No audio URL available for voice:", voice.id);
+        console.error("Invalid audio URL:", voice.audioUrl);
       }
+    } else {
+      setAudioError(true);
+      console.error("No audio URL available for voice:", voice.id);
     }
+    
+    // Enable play button after a short delay as a fallback
+    // This helps in cases where canplaythrough doesn't fire
+    const fallbackTimer = setTimeout(() => {
+      if (!audioLoaded && !audioError) {
+        console.log("Using fallback to enable play button");
+        setAudioLoaded(true);
+      }
+    }, 2000);
+    
+    return () => clearTimeout(fallbackTimer);
   }, [voice.audioUrl, voice.id]);
 
   const handleTimeUpdate = (e: Event) => {
@@ -216,25 +234,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       return;
     }
     
-    // Check if audio is properly loaded
-    if (!audioLoaded && !audioError) {
-      toast({
-        title: "Audio loading",
-        description: "Please wait for the audio to load before playing.",
-      });
-      return;
-    }
-    
-    // Check if there was an error loading the audio
-    if (audioError) {
-      toast({
-        title: "Playback error",
-        description: "Could not play the audio segment. The audio may be unavailable.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
     // Initialize audio context if not already done
     if (!audioContextRef.current) {
       initAudioContext();
@@ -308,8 +307,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               variant="ghost" 
               onClick={togglePlayback} 
               className="h-7 w-7 p-0"
-              title="Play voice sample"
-              disabled={!audioLoaded && !isPlaying}
+              title={isPlaying ? "Stop" : "Play voice sample"}
             >
               {isPlaying ? (
                 <Square className="h-4 w-4" />
@@ -344,12 +342,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         <div className="text-xs text-muted-foreground mb-3">
           {Math.floor(voice.startTime / 60)}:{(voice.startTime % 60).toString().padStart(2, '0')} - {Math.floor(voice.endTime / 60)}:{(voice.endTime % 60).toString().padStart(2, '0')}
         </div>
-
-        <audio 
-          ref={audioRef}
-          preload="auto"
-          style={{ display: 'none' }}
-        />
         
         {isCharacteristicsOpen && (
           <div className="mt-3 space-y-3">
@@ -404,7 +396,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
                   <span>{Math.round(characteristics.clarity * 100)}%</span>
                 </div>
                 <Slider 
-                  value={[characteristics.speed]} 
+                  value={[characteristics.clarity]} 
                   min={0} 
                   max={1} 
                   step={0.01}
