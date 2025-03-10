@@ -25,20 +25,9 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   
   const audioContextRef = useRef<AudioContext | null>(null);
-  const oscillatorRef = useRef<OscillatorNode | null>(null);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
   const filterRef = useRef<BiquadFilterNode | null>(null);
-
-  const getWaveformType = (color: string): OscillatorType => {
-    const waveformMap: Record<string, OscillatorType> = {
-      'audio-blue': 'sine',
-      'audio-purple': 'square',
-      'audio-pink': 'sawtooth',
-      'audio-green': 'triangle',
-      'audio-yellow': 'sine',
-    };
-    return waveformMap[color] || 'sine';
-  };
 
   const handleSave = async () => {
     const updatedVoice = {
@@ -77,139 +66,118 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       [key]: value,
     }));
 
-    if (isPlaying && oscillatorRef.current && filterRef.current) {
+    if (isPlaying && audioRef.current && audioContextRef.current) {
       updateAudioParameters();
     }
   };
 
   const handleAudioEnded = () => {
     setIsPlaying(false);
-    stopSimulatedAudio();
   };
 
   useEffect(() => {
     if (audioRef.current) {
-      const isValidAudioUrl = voice.audioUrl && 
-        (voice.audioUrl.endsWith('.mp3') || 
-         voice.audioUrl.endsWith('.wav') || 
-         voice.audioUrl.startsWith('blob:') ||
-         voice.audioUrl.startsWith('data:audio/'));
-
-      if (isValidAudioUrl) {
+      if (voice.audioUrl) {
         audioRef.current.src = voice.audioUrl;
-      } else {
-        audioRef.current.removeAttribute('src');
+        console.log(`Set audio source to: ${voice.audioUrl}`);
       }
-      audioRef.current.currentTime = voice.startTime;
     }
     
     return () => {
-      stopSimulatedAudio();
+      if (audioContextRef.current && sourceNodeRef.current) {
+        try {
+          sourceNodeRef.current.disconnect();
+          if (gainNodeRef.current) gainNodeRef.current.disconnect();
+          if (filterRef.current) filterRef.current.disconnect();
+        } catch (err) {
+          console.error('Error cleaning up audio nodes:', err);
+        }
+      }
     };
-  }, [voice.audioUrl, voice.startTime]);
+  }, [voice.audioUrl]);
 
   const initAudioContext = () => {
-    if (!audioContextRef.current) {
+    if (!audioContextRef.current && audioRef.current) {
       try {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         audioContextRef.current = new AudioContext();
         
+        sourceNodeRef.current = audioContextRef.current.createMediaElementSource(audioRef.current);
+        
         gainNodeRef.current = audioContextRef.current.createGain();
         filterRef.current = audioContextRef.current.createBiquadFilter();
-        filterRef.current.type = "lowpass";
         
-        filterRef.current.connect(gainNodeRef.current);
-        gainNodeRef.current.connect(audioContextRef.current.destination);
+        if (filterRef.current) {
+          filterRef.current.type = "lowshelf";
+        }
+        
+        sourceNodeRef.current.connect(filterRef.current!);
+        filterRef.current!.connect(gainNodeRef.current!);
+        gainNodeRef.current!.connect(audioContextRef.current.destination);
+        
+        console.log('Audio processing chain initialized');
       } catch (err) {
         console.error('Failed to create audio context:', err);
+        toast({
+          title: "Audio processing unavailable",
+          description: "Your browser may not support advanced audio processing features.",
+          variant: "destructive",
+        });
       }
     }
   };
 
   const updateAudioParameters = () => {
-    if (!oscillatorRef.current || !filterRef.current || !gainNodeRef.current) return;
-    
-    const baseFrequency = 220;
-    const frequencyMultiplier = Math.pow(2, characteristics.pitch * 2);
-    oscillatorRef.current.frequency.value = baseFrequency * frequencyMultiplier;
-    
-    const filterFrequency = 500 + (characteristics.tone * 10000);
-    filterRef.current.frequency.value = filterFrequency;
-    filterRef.current.Q.value = 1 + characteristics.clarity * 10;
-    
-    const volumeValue = isMuted ? 0 : 0.3 * voice.volume;
-    gainNodeRef.current.gain.value = volumeValue;
-  };
-
-  const playSimulatedAudio = () => {
-    initAudioContext();
     if (!audioContextRef.current || !filterRef.current || !gainNodeRef.current) return;
     
     try {
-      stopSimulatedAudio();
+      const volumeValue = isMuted ? 0 : voice.volume;
+      gainNodeRef.current.gain.value = volumeValue;
       
-      oscillatorRef.current = audioContextRef.current.createOscillator();
-      oscillatorRef.current.type = getWaveformType(voice.color);
-      
-      oscillatorRef.current.connect(filterRef.current);
-      
-      updateAudioParameters();
-      
-      oscillatorRef.current.start();
-      
-      const duration = Math.min(voice.endTime - voice.startTime, 5);
-      setTimeout(() => {
-        stopSimulatedAudio();
-        setIsPlaying(false);
-      }, duration * 1000);
-    } catch (err) {
-      console.error('Error playing simulated audio:', err);
-      stopSimulatedAudio();
-    }
-  };
-
-  const stopSimulatedAudio = () => {
-    if (oscillatorRef.current) {
-      try {
-        oscillatorRef.current.stop();
-        oscillatorRef.current.disconnect();
-        oscillatorRef.current = null;
-      } catch (err) {
-        console.error('Error stopping oscillator:', err);
+      if (filterRef.current) {
+        filterRef.current.frequency.value = 500 + (characteristics.tone * 4000);
+        filterRef.current.gain.value = 10 * characteristics.tone - 5;
       }
+      
+      console.log('Updated audio parameters', {
+        volume: volumeValue,
+        filterFreq: filterRef.current?.frequency.value,
+        filterGain: filterRef.current?.gain.value
+      });
+    } catch (err) {
+      console.error('Error updating audio parameters:', err);
     }
   };
 
   const togglePlayback = () => {
+    if (!audioRef.current) return;
+    
     if (isPlaying) {
-      if (audioRef.current && audioRef.current.src) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = voice.startTime;
-      }
-      stopSimulatedAudio();
+      audioRef.current.pause();
+      audioRef.current.currentTime = voice.startTime;
       setIsPlaying(false);
     } else {
-      if (audioRef.current && audioRef.current.src) {
-        audioRef.current.currentTime = voice.startTime;
-        const playPromise = audioRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise.then(() => {
-            setIsPlaying(true);
-          }).catch(error => {
-            console.error("Error playing audio:", error);
-            toast({
-              title: "Using simulated audio",
-              description: "Playing a synthesized representation of this voice.",
-              duration: 2000,
-            });
-            playSimulatedAudio();
-            setIsPlaying(true);
+      if (!audioContextRef.current) {
+        initAudioContext();
+      }
+      
+      audioRef.current.currentTime = voice.startTime;
+      updateAudioParameters();
+      
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          console.log(`Playing voice ${voice.tag} from ${voice.startTime}s to ${voice.endTime}s`);
+          setIsPlaying(true);
+        }).catch(error => {
+          console.error("Error playing audio:", error);
+          toast({
+            title: "Playback error",
+            description: "Could not play the audio segment. The audio may be unavailable.",
+            variant: "destructive",
           });
-        }
-      } else {
-        playSimulatedAudio();
-        setIsPlaying(true);
+        });
       }
     }
   };
@@ -217,12 +185,12 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   const toggleMute = () => {
     setIsMuted(!isMuted);
     
-    if (gainNodeRef.current) {
-      gainNodeRef.current.gain.value = isMuted ? 0.3 * voice.volume : 0;
-    }
-    
     if (audioRef.current) {
       audioRef.current.muted = !isMuted;
+    }
+    
+    if (gainNodeRef.current) {
+      gainNodeRef.current.gain.value = isMuted ? 0 : voice.volume;
     }
   };
 
@@ -309,6 +277,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               audio.pause();
               audio.currentTime = voice.startTime;
               setIsPlaying(false);
+              console.log(`Reached end time (${voice.endTime}s), stopping playback`);
             }
           }}
           style={{ display: 'none' }}

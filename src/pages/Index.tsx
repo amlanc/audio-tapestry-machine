@@ -36,6 +36,10 @@ const Index = () => {
   const analyzeVoices = async (file: AudioFile) => {
     try {
       setIsAnalyzing(true);
+      toast({
+        title: 'Analyzing audio',
+        description: 'Detecting voices and creating segments...',
+      });
       
       const { data: existingVoices, error: fetchError } = await supabase
         .from('voices')
@@ -71,21 +75,22 @@ const Index = () => {
             tag: v.tag,
             color: v.color,
             volume: v.volume,
-            audioUrl: v.audio_url,
+            audioUrl: v.audio_url || file.url, // Ensure we have a valid audio URL
             characteristics: characteristics
           };
         });
         
         toast({
           title: 'Voices retrieved',
-          description: `Found ${detectedVoices.length} previously analyzed voices`,
+          description: `Found ${detectedVoices.length} previously analyzed voices. Try playing them to hear the audio segments.`,
         });
       } else {
+        console.log('No existing voices found, analyzing audio file...');
         detectedVoices = await analyzeAudioForVoices(file);
         
         toast({
           title: 'Analysis complete',
-          description: `Detected ${detectedVoices.length} voices in the audio`,
+          description: `Detected ${detectedVoices.length} voices in the audio. Click the play button to hear each segment.`,
         });
       }
       
