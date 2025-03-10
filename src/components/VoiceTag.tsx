@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +43,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
       if (success) {
         toast({
           title: "Voice updated",
-          description: `"${tag}" voice characteristics saved successfully.`,
+          description: `"${tag}" voice characteristics saved successfully.",
           duration: 2000,
         });
       }
@@ -64,7 +63,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
   const handleDelete = async () => {
     if (onDelete) {
       try {
-        // Delete the voice from Supabase first
         const { error } = await supabase
           .from('voices')
           .delete()
@@ -108,7 +106,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
     setAudioError(true);
     setIsPlaying(false);
     
-    // If it's a YouTube URL, use the embed approach instead
     if (voice.audioUrl && (voice.audioUrl.includes('youtube.com') || voice.audioUrl.includes('youtu.be'))) {
       console.log("Switching to YouTube embed for playback");
       setEmbedVisible(true);
@@ -145,7 +142,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
   }, [voice.id, toast]);
 
   const togglePlayback = () => {
-    // If already playing, stop playback
     if (isPlaying) {
       if (audioRef.current) {
         audioRef.current.pause();
@@ -155,21 +151,18 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
       return;
     }
     
-    // Determine if it's a YouTube URL
     const isYoutubeUrl = voice.audioUrl && 
       (voice.audioUrl.includes('youtube.com') || voice.audioUrl.includes('youtu.be'));
     
-    console.log("Toggle playback for voice", voice.id, "URL:", voice.audioUrl, "Is YouTube:", isYoutubeUrl);
+    console.log("Toggle playback for voice", voice.id, "URL:", voice.audioUrl, "Is YouTube:", isYoutubeUrl, "Start time:", voice.startTime);
     
-    // For YouTube URLs, use embed approach directly
     if (isYoutubeUrl) {
-      console.log("Using YouTube embed for playback");
+      console.log("Using YouTube embed for playback at timestamp:", voice.startTime);
       setEmbedVisible(true);
       setIsPlaying(true);
       return;
     }
     
-    // For other audio URLs, attempt to play directly
     if (!audioRef.current) {
       console.error("Audio reference is null");
       return;
@@ -181,10 +174,12 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
       
       console.log("Attempting to play audio URL:", voice.audioUrl);
       
+      audioRef.current.currentTime = voice.startTime;
+      
       audioRef.current.play()
         .then(() => {
           setIsPlaying(true);
-          console.log("Audio playing successfully");
+          console.log("Audio playing successfully from timestamp:", voice.startTime);
         })
         .catch(error => {
           console.error("Error playing audio:", error);
@@ -224,12 +219,10 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
     try {
       console.log("Converting YouTube URL to embed:", url);
       
-      // Extract video ID and start time from YouTube URL
       let videoId = '';
       let startTime = Math.floor(voice.startTime || 0);
       
       if (url.includes('youtu.be/')) {
-        // Format: https://youtu.be/VIDEO_ID?start=123
         const pathParts = url.split('youtu.be/')[1].split('?');
         videoId = pathParts[0];
         
@@ -239,7 +232,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
         }
       } else if (url.includes('youtube.com')) {
         if (url.includes('/embed/')) {
-          // Format: https://www.youtube.com/embed/VIDEO_ID?start=123
           const pathParts = url.split('/embed/')[1].split('?');
           videoId = pathParts[0];
           
@@ -248,7 +240,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
             if (startParam) startTime = parseInt(startParam);
           }
         } else if (url.includes('watch?v=')) {
-          // Format: https://www.youtube.com/watch?v=VIDEO_ID&start=123
           const urlObj = new URL(url);
           videoId = urlObj.searchParams.get('v') || '';
           const timeParam = urlObj.searchParams.get('t') || urlObj.searchParams.get('start');
@@ -261,12 +252,12 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
         return url;
       }
       
-      // Ensure we have a valid start time
       if (isNaN(startTime) || startTime < 0) {
         startTime = 0;
       }
       
-      // Add autoplay=1 to automatically start playing the video
+      console.log("Using timestamp for embed:", startTime);
+      
       const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1&rel=0&modestbranding=1`;
       console.log("Generated embed URL:", embedUrl);
       return embedUrl;
@@ -318,7 +309,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate, onDelete }) =
               variant="ghost" 
               onClick={togglePlayback} 
               className="h-7 w-7 p-0"
-              aria-label={isPlaying ? "Stop" : "Play voice sample"}
+              aria-label={isPlaying ? "Stop" : "Play voice segment"}
             >
               {isPlaying ? (
                 <Square className="h-4 w-4" />
