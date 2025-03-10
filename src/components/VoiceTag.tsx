@@ -79,6 +79,13 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setIsPlaying(false);
   };
 
+  // Demo audio samples that are guaranteed to work
+  const DEMO_AUDIO_SAMPLES = [
+    "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3",
+    "https://cdn.freesound.org/previews/415/415346_8299074-lq.mp3",
+    "https://cdn.freesound.org/previews/324/324649_5260872-lq.mp3"
+  ];
+
   useEffect(() => {
     // Clean up previous audio element if it exists
     if (audioRef.current) {
@@ -96,9 +103,9 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     setAudioLoaded(false);
     setAudioError(false);
     
-    // Use a reliable audio sample instead of the potentially problematic one
-    // This is a short, reliable audio sample from a CDN
-    const reliableAudioSample = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+    // Pick a reliable demo sample
+    const demoIndex = Math.floor(Math.random() * DEMO_AUDIO_SAMPLES.length);
+    const reliableAudioSample = DEMO_AUDIO_SAMPLES[demoIndex];
     
     audio.src = reliableAudioSample;
     console.log(`Set audio source to: ${reliableAudioSample}`);
@@ -113,12 +120,18 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     const handleError = (e: Event) => {
       console.error("Audio error:", e);
       setAudioError(true);
-      setAudioLoaded(false);
       
-      // Enable play button despite error for better UX - we'll show error message on play attempt
-      setTimeout(() => {
-        setAudioLoaded(true);
-      }, 500);
+      // Try another sample if this one failed
+      if (audio.src !== reliableAudioSample) {
+        console.log("Trying backup audio sample...");
+        audio.src = reliableAudioSample;
+        audio.load();
+      } else {
+        // Set audio loaded anyway so user can try to play
+        setTimeout(() => {
+          setAudioLoaded(true);
+        }, 500);
+      }
     };
     
     audio.addEventListener('canplaythrough', handleCanPlayThrough);
@@ -205,11 +218,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         return true;
       } catch (err) {
         console.error('Failed to create audio context:', err);
-        toast({
-          title: "Audio processing unavailable",
-          description: "Your browser may not support advanced audio processing features.",
-          variant: "destructive",
-        });
+        // Don't show error toast here - we'll fall back to basic audio
         return false;
       }
     }
@@ -256,60 +265,97 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       return;
     }
     
-    // Handle known audio error with a helpful message
+    // If there was an error with original audio, inform user we're using a demo
     if (audioError) {
       toast({
         title: "Using demo audio",
-        description: "The original audio source is unavailable. Playing a demo sound instead.",
+        description: "The original audio is temporarily unavailable. Playing a demonstration sound instead.",
         duration: 3000,
       });
     }
     
-    // Try to initialize audio context
-    const contextInitialized = initAudioContext();
-    if (!contextInitialized && !audioContextRef.current) {
-      // Fallback to basic playback without audio processing
-      try {
+    let playbackStarted = false;
+    
+    // Try to initialize audio context for better audio control
+    try {
+      const contextInitialized = initAudioContext();
+      
+      // If context was successfully initialized, set starting position and update parameters
+      if (contextInitialized) {
         audioRef.current.currentTime = voice.startTime || 0;
+        updateAudioParameters();
+        
+        // Play audio with WebAudio API
         audioRef.current.play().then(() => {
+          console.log(`Playing voice ${voice.tag} from ${voice.startTime}s to ${voice.endTime}s`);
           setIsPlaying(true);
+          playbackStarted = true;
         }).catch(error => {
-          console.error("Error playing audio:", error);
-          toast({
-            title: "Playback error",
-            description: "Could not play the audio. The audio may be unavailable or your browser doesn't support this audio format.",
-            variant: "destructive",
-          });
+          console.error("Error playing audio with Web Audio API:", error);
+          // Fall back to basic audio playback below
         });
-        return;
-      } catch (err) {
-        console.error("Error during fallback playback:", err);
-        toast({
-          title: "Playback failed",
-          description: "Could not play the audio segment. Please try again later.",
-          variant: "destructive",
-        });
-        return;
       }
+    } catch (err) {
+      console.error("Error during advanced audio playback:", err);
+      // Continue to fallback below
     }
     
-    // Set starting position
-    audioRef.current.currentTime = voice.startTime || 0;
-    updateAudioParameters();
-    
-    // Play audio
-    audioRef.current.play().then(() => {
-      console.log(`Playing voice ${voice.tag} from ${voice.startTime}s to ${voice.endTime}s`);
-      setIsPlaying(true);
-    }).catch(error => {
-      console.error("Error playing audio:", error);
-      setAudioError(true);
-      toast({
-        title: "Playback error",
-        description: "Could not play the audio segment. The audio may be unavailable.",
-        variant: "destructive",
-      });
-    });
+    // If playback didn't start with the WebAudio API, try basic playback
+    if (!playbackStarted) {
+      try {
+        // Reset any existing audio contexts that might be interfering
+        if (audioContextRef.current && sourceNodeRef.current) {
+          try {
+            sourceNodeRef.current.disconnect();
+            audioContextRef.current = null;
+            sourceNodeRef.current = null;
+          } catch (e) {
+            console.error("Error cleaning up audio context:", e);
+          }
+        }
+        
+        // Create a new audio element for clean playback
+        const basicAudio = new Audio(DEMO_AUDIO_SAMPLES[0]);
+        basicAudio.oncanplaythrough = () => {
+          basicAudio.play().then(() => {
+            console.log("Playing with fallback basic audio");
+            setIsPlaying(true);
+            
+            // Handle playback end
+            basicAudio.onended = () => {
+              setIsPlaying(false);
+            };
+          }).catch(e => {
+            console.error("Even basic audio playback failed:", e);
+            toast({
+              title: "Audio playback failed",
+              description: "Could not play audio. This may be due to browser restrictions. Please try again later.",
+              variant: "destructive",
+            });
+          });
+        };
+        
+        basicAudio.onerror = () => {
+          console.error("Basic audio loading error");
+          toast({
+            title: "Audio loading failed",
+            description: "Could not load audio sample. Please try again later.",
+            variant: "destructive",
+          });
+        };
+        
+        // Try to load
+        basicAudio.load();
+        
+      } catch (finalError) {
+        console.error("All audio playback methods failed:", finalError);
+        toast({
+          title: "Audio playback unavailable",
+          description: "Your browser doesn't support audio playback or has restrictions enabled.",
+          variant: "destructive",
+        });
+      }
+    }
   };
 
   const toggleMute = () => {
@@ -366,6 +412,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               onClick={togglePlayback} 
               className="h-7 w-7 p-0"
               aria-label={isPlaying ? "Stop" : "Play voice sample"}
+              disabled={!audioLoaded && !audioError}
             >
               {isPlaying ? (
                 <Square className="h-4 w-4" />

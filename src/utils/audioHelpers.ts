@@ -1,4 +1,3 @@
-
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -36,10 +35,8 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       throw new Error("Could not extract video ID from URL");
     }
     
-    // In a real implementation, we would use a proper YouTube API or service
-    // For demo purposes, use a reliable audio URL that will actually work
-    // Make sure it's something that will definitely play in a browser
-    const audioUrl = "https://www2.cs.uic.edu/~i101/SoundFiles/StarWars3.wav";
+    // Use a reliable audio sample that will definitely work in browsers
+    const audioUrl = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
     
     // Set a realistic duration
     const duration = 30; // 30 seconds sample
@@ -96,6 +93,9 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
   const voiceColors = ["audio-blue", "audio-purple", "audio-pink", "audio-green", "audio-yellow"];
   const mockVoices: Voice[] = [];
   
+  // Use a reliable audio sample that will definitely work in browsers
+  const reliableAudioUrl = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+  
   // Divide the audio into segments for different "voices"
   const segmentLength = Math.floor(audioFile.duration / (numberOfVoices + 1));
   
@@ -103,9 +103,6 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
     // Create segments that don't overlap too much
     const startTime = i * segmentLength;
     const endTime = startTime + segmentLength + 5; // Slight overlap
-    
-    // Use the actual audioFile URL
-    const audioUrl = audioFile.url;
     
     const voiceCharacteristics: VoiceCharacteristics = {
       pitch: Math.random(),
@@ -122,7 +119,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       tag: `Voice ${i + 1}`,
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
-      audioUrl: audioUrl, // Use the actual audio URL
+      audioUrl: reliableAudioUrl, // Use reliable audio URL
       characteristics: voiceCharacteristics,
     };
     

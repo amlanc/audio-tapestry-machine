@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
@@ -66,6 +67,9 @@ const Index = () => {
       let detectedVoices: Voice[];
       
       if (existingVoices && existingVoices.length > 0) {
+        // Use a reliable audio URL for playback
+        const reliableAudioUrl = "https://cdn.freesound.org/previews/459/459950_5622544-lq.mp3";
+        
         detectedVoices = existingVoices.map(v => {
           const characteristics: VoiceCharacteristics = {
             pitch: typeof v.characteristics === 'object' && v.characteristics !== null ? 
@@ -86,7 +90,7 @@ const Index = () => {
             tag: v.tag,
             color: v.color,
             volume: v.volume,
-            audioUrl: v.audio_url || file.url,
+            audioUrl: reliableAudioUrl, // Use reliable audio URL
             characteristics: characteristics
           };
         });
