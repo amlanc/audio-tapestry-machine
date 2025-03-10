@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Youtube } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -70,7 +71,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       setIsExtracting(true);
       toast({
         title: 'Extracting audio',
-        description: 'Extracting audio from YouTube video...',
+        description: 'Extracting audio from YouTube video... This may take up to 30 seconds.',
         duration: 30000,
       });
       
@@ -86,6 +87,9 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
         title: 'Audio extracted',
         description: 'Successfully extracted audio from YouTube video',
       });
+      
+      // Clear the URL input after successful extraction
+      setYoutubeUrl('');
     } catch (error) {
       console.error('Error extracting audio from YouTube:', error);
       toast({

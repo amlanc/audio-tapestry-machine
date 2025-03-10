@@ -16,11 +16,14 @@ serve(async (req) => {
   }
 
   try {
+    console.log("Extract YouTube audio function called");
+    
     // Get request data
     const requestData = await req.json();
     const { youtubeUrl } = requestData;
 
     if (!youtubeUrl) {
+      console.error("Missing YouTube URL in request");
       return new Response(
         JSON.stringify({ error: 'YouTube URL is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -66,15 +69,18 @@ serve(async (req) => {
       console.error("Error checking/creating bucket:", error);
     }
 
-    // Download YouTube video using youtube_dl
-    console.log("Initializing YouTube downloader...");
     try {
+      // Initialize YouTube downloader
+      console.log("Initializing YouTube downloader...");
       const downloader = new YoutubeDownloader();
       
+      // Get video info
       console.log("Getting video info...");
       const videoInfo = await downloader.getInfo(youtubeUrl);
+      console.log("Video info received:", videoInfo?.title || "Unknown title");
       
-      if (!videoInfo || !videoInfo.title || !videoInfo.id) {
+      if (!videoInfo || !videoInfo.title) {
+        console.error("Failed to get video details");
         return new Response(
           JSON.stringify({ error: 'Failed to get video details' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -82,25 +88,27 @@ serve(async (req) => {
       }
       
       const videoTitle = videoInfo.title;
-      const videoId = videoInfo.id;
+      const videoId = videoInfo.id || `video-${Date.now()}`;
       
       console.log(`Downloading audio for video: ${videoTitle} (${videoId})...`);
       
       // Download audio only
-      const result = await downloader.download(youtubeUrl, {
+      const downloadResult = await downloader.download(youtubeUrl, {
         format: 'mp3',
         audioOnly: true,
         maxDuration: 180  // 3 minutes max
       });
       
-      if (!result || !result.audio) {
+      if (!downloadResult || !downloadResult.audio) {
+        console.error("No audio content found in download result");
         return new Response(
-          JSON.stringify({ error: 'No audio content found' }),
+          JSON.stringify({ error: 'No audio content found in download result' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
       
-      const audioData = result.audio;
+      const audioData = downloadResult.audio;
+      console.log(`Audio data received: ${audioData.byteLength} bytes`);
       
       // Generate a filename
       const filename = `${videoId}-${Date.now()}.mp3`;
@@ -128,6 +136,7 @@ serve(async (req) => {
         .getPublicUrl(filename);
         
       const audioUrl = publicUrlData.publicUrl;
+      console.log(`Audio URL: ${audioUrl}`);
       
       // Calculate approximate duration
       const duration = Math.min(180, videoInfo.duration || 180); // Maximum 3 minutes
@@ -139,6 +148,7 @@ serve(async (req) => {
       );
       
       // Store audio file metadata in Supabase
+      console.log("Storing audio file metadata...");
       const { data: storedAudio, error: storeError } = await supabase
         .from('audio_files')
         .insert({
@@ -158,6 +168,8 @@ serve(async (req) => {
         );
       }
       
+      console.log("Successfully processed YouTube audio extraction");
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -174,7 +186,9 @@ serve(async (req) => {
     } catch (downloadError) {
       console.error("Error downloading from YouTube:", downloadError);
       return new Response(
-        JSON.stringify({ error: `Failed to download YouTube audio: ${downloadError.message || 'Unknown error'}` }),
+        JSON.stringify({ 
+          error: `Failed to download YouTube audio: ${downloadError.message || 'Unknown error'}` 
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
