@@ -5,7 +5,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
-import { extractAudioFromYouTube } from '@/utils/audioHelpers';
+import { extractAudioFromYouTube } from '@/utils/youtubeAudio';
 import { AudioFile } from '@/types';
 
 interface YouTubeInputProps {
