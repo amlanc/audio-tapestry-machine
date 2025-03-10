@@ -1,4 +1,3 @@
-
 import { AudioFile, Voice, VoiceCharacteristics } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -87,29 +86,23 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
 
 // Analyze audio file to detect voices (mock implementation)
 export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice[]> => {
-  // This is a mock implementation
-  // In a real application, you would use a voice analysis API
-  
   console.log(`Analyzing audio file: ${audioFile.name}`);
   
   // Simulate processing delay
   await new Promise(resolve => setTimeout(resolve, 1500));
   
-  // Generate 2-4 mock voices with random start/end times
   const numberOfVoices = Math.floor(Math.random() * 3) + 2;
   const voiceColors = ["audio-blue", "audio-purple", "audio-pink", "audio-green", "audio-yellow"];
-  
   const mockVoices: Voice[] = [];
   
   for (let i = 0; i < numberOfVoices; i++) {
     const startTime = Math.floor(Math.random() * (audioFile.duration / 2));
     const endTime = startTime + Math.floor(Math.random() * (audioFile.duration - startTime - 10)) + 10;
     
-    // Create sample audio URL for voice preview (in a real app, this would be a segment of the actual audio)
-    // For mock purposes, we'll reuse the original audio file URL or a placeholder
-    const audioUrl = audioFile.url || 'https://example.com/audio-sample.mp3';
+    // Use the actual audio file URL for the voice preview
+    const audioUrl = audioFile.url || '';
     
-    const voiceCharacteristics = {
+    const voiceCharacteristics: VoiceCharacteristics = {
       pitch: Math.random(),
       tone: Math.random(),
       speed: Math.random(),
@@ -124,7 +117,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       tag: `Voice ${i + 1}`,
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
-      audioUrl, // Set the audio URL for voice previewing
+      audioUrl, // Using the actual audio file URL
       characteristics: voiceCharacteristics,
     };
     
@@ -139,16 +132,14 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
         color: mockVoice.color,
         volume: mockVoice.volume,
         audio_url: mockVoice.audioUrl,
-        characteristics: mockVoice.characteristics
+        characteristics: voiceCharacteristics as any // Type casting to satisfy Supabase
       })
       .select()
       .single();
       
     if (storeError) {
       console.error("Error storing voice in Supabase:", storeError);
-      // Continue with the next voice even if this one fails
     } else {
-      // Update the mockVoice with the stored ID
       mockVoice.id = storedVoice.id;
     }
     

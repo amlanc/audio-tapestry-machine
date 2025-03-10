@@ -1,5 +1,4 @@
-
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -38,22 +37,36 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     }));
   };
 
+  const handleAudioEnded = () => {
+    setIsPlaying(false);
+  };
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.src = voice.audioUrl;
+      audioRef.current.currentTime = voice.startTime;
+    }
+  }, [voice.audioUrl, voice.startTime]);
+
   const togglePlayback = () => {
     if (!audioRef.current) return;
 
     if (isPlaying) {
       audioRef.current.pause();
-      audioRef.current.currentTime = 0;
+      audioRef.current.currentTime = voice.startTime;
     } else {
-      audioRef.current.play();
+      audioRef.current.currentTime = voice.startTime;
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error("Error playing audio:", error);
+        });
+      }
     }
     setIsPlaying(!isPlaying);
   };
 
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-  };
-  
   return (
     <Card className={`border-l-4 border-l-${voice.color}`}>
       <CardHeader className="pb-2">
@@ -118,6 +131,14 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
           ref={audioRef}
           src={voice.audioUrl} 
           onEnded={handleAudioEnded}
+          onTimeUpdate={(e) => {
+            const audio = e.target as HTMLAudioElement;
+            if (audio.currentTime >= voice.endTime) {
+              audio.pause();
+              audio.currentTime = voice.startTime;
+              setIsPlaying(false);
+            }
+          }}
           style={{ display: 'none' }}
         />
         
