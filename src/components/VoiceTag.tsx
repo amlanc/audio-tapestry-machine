@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -83,20 +82,38 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       
       // Pre-load the audio to avoid issues when playing
       audioRef.current.load();
-    }
-    
-    return () => {
-      if (audioContextRef.current && sourceNodeRef.current) {
-        try {
-          sourceNodeRef.current.disconnect();
-          if (gainNodeRef.current) gainNodeRef.current.disconnect();
-          if (filterRef.current) filterRef.current.disconnect();
-        } catch (err) {
-          console.error('Error cleaning up audio nodes:', err);
+
+      // Add non-passive event listeners
+      const audio = audioRef.current;
+      audio.addEventListener('timeupdate', handleTimeUpdate, { passive: true });
+      audio.addEventListener('ended', handleAudioEnded, { passive: true });
+
+      return () => {
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+        audio.removeEventListener('ended', handleAudioEnded);
+        
+        if (audioContextRef.current && sourceNodeRef.current) {
+          try {
+            sourceNodeRef.current.disconnect();
+            if (gainNodeRef.current) gainNodeRef.current.disconnect();
+            if (filterRef.current) filterRef.current.disconnect();
+          } catch (err) {
+            console.error('Error cleaning up audio nodes:', err);
+          }
         }
-      }
-    };
+      };
+    }
   }, [voice.audioUrl]);
+
+  const handleTimeUpdate = (e: Event) => {
+    const audio = e.target as HTMLAudioElement;
+    if (audio.currentTime >= voice.endTime) {
+      audio.pause();
+      audio.currentTime = voice.startTime;
+      setIsPlaying(false);
+      console.log(`Reached end time (${voice.endTime}s), stopping playback`);
+    }
+  };
 
   const initAudioContext = () => {
     if (!audioContextRef.current && audioRef.current) {
@@ -278,17 +295,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
 
         <audio 
           ref={audioRef}
-          onEnded={handleAudioEnded}
           preload="auto"
-          onTimeUpdate={(e) => {
-            const audio = e.target as HTMLAudioElement;
-            if (audio.currentTime >= voice.endTime) {
-              audio.pause();
-              audio.currentTime = voice.startTime;
-              setIsPlaying(false);
-              console.log(`Reached end time (${voice.endTime}s), stopping playback`);
-            }
-          }}
           style={{ display: 'none' }}
         />
         
