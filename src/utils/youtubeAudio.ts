@@ -3,7 +3,6 @@ import { AudioFile } from "../types";
 import { supabase } from "@/integrations/supabase/client";
 import { generateId } from "./audioCore";
 
-// Extract audio from YouTube using Supabase Edge Function
 export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<AudioFile | null> => {
   console.log(`Extracting audio from YouTube URL: ${youtubeUrl}`);
   
@@ -14,13 +13,13 @@ export const extractAudioFromYouTube = async (youtubeUrl: string): Promise<Audio
       throw new Error("Invalid YouTube URL");
     }
     
-    // Call the Supabase Edge Function to extract audio
-    const response = await supabase.functions.invoke('extract-youtube-audio', {
+    // Call the new AI-powered Supabase Edge Function
+    const response = await supabase.functions.invoke('ai-extract-youtube', {
       body: { youtubeUrl }
     });
     
     if (response.error) {
-      console.error("Error from extract-youtube-audio function:", response.error);
+      console.error("Error from ai-extract-youtube function:", response.error);
       throw new Error(`Failed to extract audio: ${response.error.message || response.error}`);
     }
     
