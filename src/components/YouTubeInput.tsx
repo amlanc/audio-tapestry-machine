@@ -71,7 +71,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       setIsExtracting(true);
       toast({
         title: 'Processing YouTube video',
-        description: 'Extracting audio and analyzing with AssemblyAI... This may take up to 1-2 minutes.',
+        description: 'Extracting audio and analyzing speakers... This may take a minute.',
         duration: 60000,
       });
       
@@ -85,7 +85,8 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
       
       toast({
         title: 'Video processed',
-        description: 'Successfully extracted and analyzed audio from YouTube video',
+        description: 'Successfully extracted and analyzed audio from YouTube video. Check the "Detected Voices" section to hear each voice.',
+        duration: 8000,
       });
       
       // Clear the URL input after successful extraction
@@ -96,6 +97,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
         title: 'Error processing video',
         description: error instanceof Error ? error.message : 'An unknown error occurred',
         variant: 'destructive',
+        duration: 8000,
       });
     } finally {
       setIsExtracting(false);
@@ -108,7 +110,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
         <div className="flex flex-col gap-4 h-full">
           <div className="flex items-center gap-2">
             <Youtube className="h-5 w-5 text-red-500" />
-            <h3 className="font-semibold">Extract from YouTube</h3>
+            <h3 className="font-semibold">Extract Voices from YouTube</h3>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-2">
@@ -124,13 +126,13 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
               disabled={isLoading || isExtracting || !youtubeUrl.trim()}
               className="min-w-[120px]"
             >
-              {isExtracting ? 'Processing...' : 'Extract Audio'}
+              {isExtracting ? 'Processing...' : 'Extract Voices'}
             </Button>
           </div>
           
           <p className="text-xs text-muted-foreground mt-auto">
-            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". 
-            We'll use AssemblyAI to extract and analyze the audio, detecting different voices and speakers.
+            Enter a YouTube URL and click "Extract Voices". We'll analyze the video to detect different speakers
+            and create audio samples for each voice found. You can then listen to individual voice samples.
           </p>
         </div>
       </CardContent>

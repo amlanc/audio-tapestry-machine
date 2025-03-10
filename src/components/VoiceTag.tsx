@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,7 +23,9 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   const [tag, setTag] = useState(voice.tag);
   const [characteristics, setCharacteristics] = useState({ ...voice.characteristics });
   const [audioError, setAudioError] = useState(false);
+  const [embedVisible, setEmbedVisible] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   
   const handleSave = async () => {
     const updatedVoice = {
@@ -66,66 +67,77 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
 
   const handleAudioEnded = () => {
     setIsPlaying(false);
+    setEmbedVisible(false);
   };
 
-  // Define the handleError function before using it
   const handleError = (e: Event) => {
     console.error("Audio error:", e);
     setAudioError(true);
     setIsPlaying(false);
     toast({
       title: "Audio Error",
-      description: "Unable to play audio. Please try again later.",
+      description: "Unable to play audio. Trying alternative playback method.",
       variant: "destructive",
     });
+    
+    if (voice.audioUrl && voice.audioUrl.includes('youtube.com')) {
+      setEmbedVisible(true);
+    }
   };
 
   useEffect(() => {
-    // Clean up previous audio element
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.removeEventListener('ended', handleAudioEnded);
       audioRef.current.removeEventListener('error', handleError);
     }
     
-    // Create a new audio element
     const audio = new Audio();
     audioRef.current = audio;
     
-    // Reset error state
     setAudioError(false);
     
-    // Set up event handlers
     audio.addEventListener('error', handleError);
     audio.addEventListener('ended', handleAudioEnded);
-    
-    // We don't set the src until we actually play to avoid unnecessary errors
     
     return () => {
       audio.pause();
       audio.removeEventListener('error', handleError);
       audio.removeEventListener('ended', handleAudioEnded);
+      setEmbedVisible(false);
     };
   }, [voice.id, toast]);
 
   const togglePlayback = () => {
-    if (!audioRef.current) {
+    if (embedVisible) {
+      setEmbedVisible(false);
+      setIsPlaying(false);
       return;
     }
     
-    // If already playing, pause
-    if (isPlaying) {
+    if (isPlaying && audioRef.current) {
       audioRef.current.pause();
       setIsPlaying(false);
       return;
     }
     
-    // Set the source right before playing to avoid unnecessary network requests
+    const isYoutubeUrl = voice.audioUrl && 
+      (voice.audioUrl.includes('youtube.com') || voice.audioUrl.includes('youtu.be'));
+    
+    if (isYoutubeUrl) {
+      setEmbedVisible(true);
+      setIsPlaying(true);
+      return;
+    }
+    
+    if (!audioRef.current) {
+      return;
+    }
+    
     if (voice.audioUrl) {
       audioRef.current.src = voice.audioUrl;
       audioRef.current.volume = isMuted ? 0 : 1;
       
-      // Play the audio
       audioRef.current.play()
         .then(() => {
           setIsPlaying(true);
@@ -133,11 +145,17 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         .catch(error => {
           console.error("Error playing audio:", error);
           setAudioError(true);
-          toast({
-            title: "Playback error",
-            description: "Could not play the audio sample. Please try again later.",
-            variant: "destructive",
-          });
+          
+          if (isYoutubeUrl) {
+            setEmbedVisible(true);
+            setIsPlaying(true);
+          } else {
+            toast({
+              title: "Playback error",
+              description: "Could not play the audio sample. Please try again later.",
+              variant: "destructive",
+            });
+          }
         });
     } else {
       setAudioError(true);
@@ -157,6 +175,44 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
     }
   };
 
+  const getYouTubeEmbedUrl = (url: string): string => {
+    try {
+      if (url.includes('youtu.be/')) {
+        const videoId = url.split('youtu.be/')[1].split('?')[0];
+        let startTime = 0;
+        
+        if (url.includes('start=')) {
+          const startParam = url.split('start=')[1].split('&')[0];
+          startTime = parseInt(startParam) || 0;
+        }
+        
+        return `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1`;
+      }
+      
+      if (url.includes('youtube.com')) {
+        if (url.includes('/embed/')) {
+          return url.includes('autoplay=1') ? url : `${url}&autoplay=1`;
+        }
+        
+        if (url.includes('watch?v=')) {
+          const videoId = new URL(url).searchParams.get('v');
+          let startTime = 0;
+          
+          if (url.includes('start=')) {
+            const startParam = new URL(url).searchParams.get('start');
+            startTime = parseInt(startParam || '0');
+          }
+          
+          return `https://www.youtube.com/embed/${videoId}?autoplay=1&start=${startTime}&enablejsapi=1`;
+        }
+      }
+      
+      return url;
+    } catch {
+      return url;
+    }
+  };
+
   return (
     <Card className={`border-l-4 border-l-${voice.color}`}>
       <CardHeader className="pb-2">
@@ -173,7 +229,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
             ) : (
               <span>{voice.tag}</span>
             )}
-            {audioError && (
+            {audioError && !embedVisible && (
               <AlertTriangle className="h-4 w-4 text-amber-500" aria-label="Audio source unavailable" />
             )}
           </div>
@@ -185,6 +241,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               onClick={toggleMute} 
               className="h-7 w-7 p-0"
               aria-label={isMuted ? "Unmute" : "Mute"}
+              disabled={embedVisible}
             >
               {isMuted ? (
                 <VolumeX className="h-4 w-4" />
@@ -234,6 +291,20 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         <div className="text-xs text-muted-foreground mb-3">
           {Math.floor(voice.startTime / 60)}:{(voice.startTime % 60).toString().padStart(2, '0')} - {Math.floor(voice.endTime / 60)}:{(voice.endTime % 60).toString().padStart(2, '0')}
         </div>
+        
+        {embedVisible && voice.audioUrl && (
+          <div className="my-2 rounded overflow-hidden aspect-video">
+            <iframe 
+              ref={iframeRef}
+              src={getYouTubeEmbedUrl(voice.audioUrl)}
+              title={`${voice.tag} sample`}
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              onLoad={() => console.log("YouTube iframe loaded")}
+            ></iframe>
+          </div>
+        )}
         
         {isCharacteristicsOpen && (
           <div className="mt-3 space-y-3">
