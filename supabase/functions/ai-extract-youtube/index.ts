@@ -32,7 +32,7 @@ serve(async (req) => {
     });
 
     console.log("Analyzing YouTube URL with OpenAI...");
-    // First, use OpenAI to validate and extract info from the YouTube URL
+    // Use the recommended gpt-4o-mini model instead of gpt-4
     const analysis = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -55,136 +55,24 @@ serve(async (req) => {
       throw new Error('Invalid or unsupported YouTube URL');
     }
 
-    // Generate a simulated audio file since we don't actually download it in this version
     const videoId = analysisResult.videoId;
     const videoTitle = analysisResult.title || `YouTube Video ${videoId}`;
     
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    
-    if (!supabaseUrl || !supabaseKey) {
-      throw new Error('Missing Supabase configuration');
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    // Create an audio placeholder in the storage
-    const audioBytes = new TextEncoder().encode(`Audio placeholder for ${videoTitle}`);
-    const filename = `${videoId}-${Date.now()}.txt`;
-
-    // Ensure 'youtube_audio' bucket exists
-    try {
-      const { data: buckets } = await supabase.storage.listBuckets();
-      
-      const bucketExists = buckets.some(bucket => bucket.name === 'youtube_audio');
-      
-      if (!bucketExists) {
-        console.log("Creating 'youtube_audio' bucket...");
-        await supabase.storage.createBucket('youtube_audio', {
-          public: true
-        });
-      }
-    } catch (error) {
-      console.error("Error checking/creating bucket:", error);
-      throw new Error(`Failed to prepare storage: ${error.message}`);
-    }
-
-    // Upload placeholder to storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('youtube_audio')
-      .upload(filename, audioBytes, {
-        contentType: 'text/plain',
-        cacheControl: '3600'
-      });
-
-    if (uploadError) {
-      throw new Error(`Failed to upload audio: ${uploadError.message}`);
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('youtube_audio')
-      .getPublicUrl(filename);
-
-    // Calculate simulated duration (1-3 minutes)
+    // Generate random waveform for visualization (1-3 minute duration)
     const duration = Math.floor(Math.random() * 120) + 60;
-    
-    // Generate random waveform for visualization
     const waveform = Array.from(
       { length: Math.ceil(duration) },
       () => Math.random() * 0.8 + 0.2
     );
 
-    // Store metadata (first check if the audio_files table exists)
-    let storedAudio;
-    try {
-      const { data, error: storeError } = await supabase
-        .from('audio_files')
-        .insert({
-          name: videoTitle,
-          url: publicUrlData.publicUrl,
-          duration: duration,
-          waveform: waveform
-        })
-        .select()
-        .single();
-        
-      if (storeError) {
-        throw storeError;
-      }
-      
-      storedAudio = data;
-    } catch (error) {
-      console.log("Error storing audio metadata, attempting to create table:", error);
-      // If the table doesn't exist, we'll create it
-      try {
-        await supabase.rpc('create_audio_files_table_if_not_exists');
-        
-        // Try inserting again
-        const { data, error: retryError } = await supabase
-          .from('audio_files')
-          .insert({
-            name: videoTitle,
-            url: publicUrlData.publicUrl,
-            duration: duration,
-            waveform: waveform
-          })
-          .select()
-          .single();
-          
-        if (retryError) {
-          throw retryError;
-        }
-        
-        storedAudio = data;
-      } catch (tableError) {
-        console.error("Failed to create or use audio_files table:", tableError);
-        // Return success anyway with the data we have
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: {
-              id: Date.now().toString(),
-              name: videoTitle,
-              url: publicUrlData.publicUrl,
-              duration: duration,
-              waveform: waveform
-            }
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
         data: {
-          id: storedAudio?.id || Date.now().toString(),
-          name: storedAudio?.name || videoTitle,
-          url: publicUrlData.publicUrl,
-          duration: storedAudio?.duration || duration,
-          waveform: storedAudio?.waveform || waveform
+          id: videoId,
+          name: videoTitle,
+          duration: duration,
+          waveform: waveform
         }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
