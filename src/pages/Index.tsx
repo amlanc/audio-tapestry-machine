@@ -5,12 +5,11 @@ import Header from '@/components/Header';
 import AudioUploader from '@/components/AudioUploader';
 import YouTubeInput from '@/components/YouTubeInput';
 import AudioWaveform from '@/components/AudioWaveform';
-import VoiceAnalyzer from '@/components/VoiceAnalyzer';
 import VoiceTag from '@/components/VoiceTag';
 import VoiceMixer from '@/components/VoiceMixer';
 import Footer from '@/components/Footer';
 import { AudioFile, Voice } from '@/types';
-import { saveVoiceCharacteristics } from '@/utils/audioHelpers';
+import { saveVoiceCharacteristics, analyzeAudioForVoices } from '@/utils/audioHelpers';
 import { useToast } from '@/components/ui/use-toast';
 import { Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -25,16 +24,38 @@ const Index = () => {
   const youtubeInputRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
-  // Handle audio file upload or extraction
-  const handleAudioFile = (file: AudioFile) => {
+  // Handle audio file upload or extraction with automatic analysis
+  const handleAudioFile = async (file: AudioFile) => {
     setAudioFile(file);
     setVoices([]);
     setCurrentTime(0);
+    
+    // Automatically trigger voice analysis
+    await analyzeVoices(file);
   };
 
-  // Handle voices detected from analysis
-  const handleVoicesDetected = (detectedVoices: Voice[]) => {
-    setVoices(detectedVoices);
+  // Voice analysis function
+  const analyzeVoices = async (file: AudioFile) => {
+    try {
+      setIsAnalyzing(true);
+      
+      const detectedVoices = await analyzeAudioForVoices(file);
+      setVoices(detectedVoices);
+      
+      toast({
+        title: 'Analysis complete',
+        description: `Detected ${detectedVoices.length} voices in the audio`,
+      });
+    } catch (error) {
+      console.error('Error analyzing voices:', error);
+      toast({
+        title: 'Analysis failed',
+        description: error instanceof Error ? error.message : 'Failed to analyze voices',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   // Handle voice update (tag, characteristics, etc.)
@@ -125,6 +146,15 @@ const Index = () => {
               />
             )}
             
+            {isAnalyzing && (
+              <div className="flex justify-center py-8">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary"></div>
+                  <p className="text-sm text-muted-foreground">Analyzing voices...</p>
+                </div>
+              </div>
+            )}
+            
             {voices.length > 0 && (
               <div className="space-y-4">
                 <h2 className="text-xl font-semibold">Detected Voices</h2>
@@ -142,13 +172,6 @@ const Index = () => {
           </div>
           
           <div className="space-y-6">
-            <VoiceAnalyzer 
-              audioFile={audioFile} 
-              onVoicesDetected={handleVoicesDetected} 
-              isAnalyzing={isAnalyzing}
-              setIsAnalyzing={setIsAnalyzing}
-            />
-            
             {voices.length > 0 && (
               <VoiceMixer 
                 audioFile={audioFile} 

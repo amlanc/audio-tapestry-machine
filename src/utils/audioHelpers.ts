@@ -84,6 +84,10 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
     const startTime = Math.floor(Math.random() * (audioFile.duration / 2));
     const endTime = startTime + Math.floor(Math.random() * (audioFile.duration - startTime - 10)) + 10;
     
+    // Create sample audio URL for voice preview (in a real app, this would be a segment of the actual audio)
+    // For mock purposes, we'll reuse the original audio file URL or a placeholder
+    const audioUrl = audioFile.url || 'https://example.com/audio-sample.mp3';
+    
     const mockVoice: Voice = {
       id: generateId(),
       audioId: audioFile.id,
@@ -92,6 +96,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       tag: `Voice ${i + 1}`,
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
+      audioUrl, // Set the audio URL for voice previewing
       characteristics: {
         pitch: Math.random(),
         tone: Math.random(),

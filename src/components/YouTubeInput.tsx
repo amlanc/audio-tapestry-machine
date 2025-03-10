@@ -81,7 +81,7 @@ const YouTubeInput: React.FC<YouTubeInputProps> = ({ onAudioExtracted, isLoading
           </div>
           
           <p className="text-xs text-muted-foreground mt-auto">
-            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio" to analyze the video's audio.
+            Enter a YouTube URL (e.g., https://youtube.com/watch?v=XXXX) and click "Extract Audio". The system will automatically analyze the voices.
           </p>
         </div>
       </CardContent>

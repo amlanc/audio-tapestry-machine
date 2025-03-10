@@ -34,7 +34,7 @@ const AudioUploader: React.FC<AudioUploaderProps> = ({ onAudioUploaded, isLoadin
       
       toast({
         title: 'Audio uploaded',
-        description: `Successfully processed ${file.name}`,
+        description: `Successfully processed ${file.name}. Analyzing voices...`,
       });
     } catch (error) {
       console.error('Error processing audio file:', error);
@@ -108,7 +108,7 @@ const AudioUploader: React.FC<AudioUploaderProps> = ({ onAudioUploaded, isLoadin
           </div>
           
           <p className="text-xs text-muted-foreground">
-            Supported formats: MP3, WAV, OGG, FLAC
+            Supported formats: MP3, WAV, OGG, FLAC. Voices will be automatically analyzed after upload.
           </p>
         </div>
       </CardContent>
