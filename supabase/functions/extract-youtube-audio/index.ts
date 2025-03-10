@@ -1,7 +1,6 @@
-
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import OpenAI from "https://esm.sh/openai@4.28.0";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.2";
+import { createClient } from "@supabase/supabase-js";
+import OpenAI from "openai";
 
 // Configure CORS headers for cross-origin requests
 const corsHeaders = {
@@ -56,6 +55,12 @@ serve(async (req) => {
 
     console.log(`Extracted video ID: ${videoId}`);
 
+    // Initialize Supabase client
+    const supabase = createClient(
+      supabaseUrl || "",
+      supabaseServiceRoleKey || ""
+    );
+
     // Initialize OpenAI client for metadata extraction
     const openai = new OpenAI({
       apiKey: openaiApiKey,
@@ -67,11 +72,11 @@ serve(async (req) => {
       messages: [
         {
           role: "system",
-          content: "You analyze YouTube URLs and extract basic metadata. Return a JSON with title, description, and estimatedDuration in seconds."
+          content: "You analyze YouTube URLs and extract basic metadata. Return a JSON with title and estimatedDuration in seconds (limit to 180 seconds/3 minutes max for processing limits)."
         },
         {
           role: "user",
-          content: `Extract basic metadata for YouTube video with ID: ${videoId}. Estimate a reasonable duration in seconds.`
+          content: `Extract basic metadata for YouTube video with ID: ${videoId}. Set estimatedDuration to 180 seconds (3 minutes) even for longer videos as we want to limit processing.`
         }
       ],
       response_format: { type: "json_object" }
@@ -80,26 +85,35 @@ serve(async (req) => {
     const metadata = JSON.parse(metadataResponse.choices[0].message.content);
     console.log("Video metadata:", metadata);
 
-    // Create an Assembly AI client
-    const duration = metadata.estimatedDuration || 180; // Default to 3 minutes
+    // Download and extract audio from YouTube video using youtube-dl
+    // We limit to 3 minutes (180 seconds) to keep processing manageable
+    const maxDuration = 180; // 3 minutes in seconds
+    const title = metadata.title || `YouTube Video (${videoId})`;
     
-    // Generate a simulated waveform 
+    // Use AssemblyAI to process audio
+    // For this implementation, we'll simulate the processing since we can't download YouTube videos directly
+    // In a real implementation, you would:
+    // 1. Download audio with youtube-dl
+    // 2. Upload to AssemblyAI
+    // 3. Process with speaker detection
+    
+    // Simulate AssemblyAI processing
+    console.log("Simulating AssemblyAI processing...");
+    
+    // For demonstration, create a duration between 60-180 seconds
+    const duration = Math.min(metadata.estimatedDuration || 120, maxDuration);
+    
+    // Generate a simulated waveform for visualization
     const waveform = Array.from(
-      { length: duration }, 
+      { length: Math.ceil(duration) },
       () => Math.random() * 0.8 + 0.2
-    );
-
-    // Initialize Supabase client
-    const supabase = createClient(
-      supabaseUrl || "",
-      supabaseServiceRoleKey || ""
     );
 
     // Store audio file metadata
     const { data: audioFile, error: audioFileError } = await supabase
       .from('audio_files')
       .insert({
-        name: metadata.title || `YouTube Video (${videoId})`,
+        name: title,
         url: `https://www.youtube.com/watch?v=${videoId}`,
         duration: duration,
         waveform: waveform,
@@ -116,17 +130,27 @@ serve(async (req) => {
       );
     }
 
-    // Create voice segments (simulate different speakers)
-    const numberOfVoices = Math.floor(Math.random() * 3) + 2; // 2-4 voice segments
+    // Create voice segments with random characteristics
+    // In a real implementation, these would come from AssemblyAI speaker detection
     const voiceColors = ["audio-blue", "audio-purple", "audio-pink", "audio-green", "audio-yellow"];
+    const numberOfVoices = Math.floor(Math.random() * 3) + 2; // 2-4 voices
     
+    // Create voice segments with some overlap, to simulate real conversations
     const voiceSegments = [];
-    const segmentLength = Math.floor(duration / (numberOfVoices + 1));
+    let currentPosition = 0;
     
     for (let i = 0; i < numberOfVoices; i++) {
-      const startTime = i * segmentLength;
-      const endTime = startTime + segmentLength + 5; // Slight overlap
+      // Calculate segment length - variable for realism
+      const segmentLength = Math.floor((duration / numberOfVoices) * (0.8 + Math.random() * 0.4));
       
+      // Create some overlap between segments (0-15 seconds)
+      const overlap = i > 0 ? Math.floor(Math.random() * 15) : 0;
+      const startTime = Math.max(0, currentPosition - overlap);
+      const endTime = Math.min(duration, startTime + segmentLength);
+      
+      currentPosition = endTime;
+      
+      // Generate random characteristics to simulate different voices
       const characteristics = {
         pitch: Math.random(),
         tone: Math.random(),
@@ -134,6 +158,7 @@ serve(async (req) => {
         clarity: Math.random(),
       };
       
+      // Store voice segment in Supabase
       const { data: voice, error: voiceError } = await supabase
         .from('voices')
         .insert({
