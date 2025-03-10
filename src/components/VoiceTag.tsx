@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX } from 'lucide-react';
+import { Tag, Edit2, Settings2, Save, Play, Square, Volume2, VolumeX, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -79,12 +79,17 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   };
 
   useEffect(() => {
-    // Create audio element if it doesn't exist
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
+    // Clean up previous audio element if it exists
+    if (audioRef.current) {
+      const oldAudio = audioRef.current;
+      oldAudio.pause();
+      oldAudio.src = '';
+      oldAudio.load();
     }
     
-    const audio = audioRef.current;
+    // Create new audio element
+    const audio = new Audio();
+    audioRef.current = audio;
     
     // Reset state when voice changes
     setAudioLoaded(false);
@@ -98,9 +103,6 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         console.log(`Set audio source to: ${validUrl}`);
         audio.src = validUrl;
         
-        // Pre-load the audio to avoid issues when playing
-        audio.load();
-
         // Add event listeners  
         const handleCanPlayThrough = () => {
           console.log("Audio can play through");
@@ -112,6 +114,11 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
           console.error("Audio error:", e);
           setAudioError(true);
           setAudioLoaded(false);
+          
+          // Enable play button despite error for better UX - we'll show error message on play attempt
+          setTimeout(() => {
+            setAudioLoaded(true);
+          }, 500);
         };
         
         audio.addEventListener('canplaythrough', handleCanPlayThrough);
@@ -119,8 +126,14 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         audio.addEventListener('timeupdate', handleTimeUpdate);
         audio.addEventListener('ended', handleAudioEnded);
         
-        // Force a load attempt
-        audio.load();
+        // Try to load audio
+        try {
+          audio.load();
+        } catch (err) {
+          console.error("Error loading audio:", err);
+          setAudioError(true);
+          setAudioLoaded(true); // Still enable button for fallback
+        }
 
         return () => {
           audio.removeEventListener('canplaythrough', handleCanPlayThrough);
@@ -138,24 +151,31 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               console.error('Error cleaning up audio nodes:', err);
             }
           }
+          
+          // Clean up audio element
+          audio.pause();
+          audio.src = '';
+          audio.load();
         };
       } else {
         setAudioError(true);
+        setAudioLoaded(true); // Enable button for better UX
         console.error("Invalid audio URL:", voice.audioUrl);
       }
     } else {
       setAudioError(true);
+      setAudioLoaded(true); // Enable button for better UX
       console.error("No audio URL available for voice:", voice.id);
     }
     
-    // Enable play button after a short delay as a fallback
-    // This helps in cases where canplaythrough doesn't fire
+    // Always enable play button after a short delay
+    // This helps in cases where audio loading fails silently
     const fallbackTimer = setTimeout(() => {
-      if (!audioLoaded && !audioError) {
+      if (!audioLoaded) {
         console.log("Using fallback to enable play button");
         setAudioLoaded(true);
       }
-    }, 2000);
+    }, 1000);
     
     return () => clearTimeout(fallbackTimer);
   }, [voice.audioUrl, voice.id]);
@@ -190,6 +210,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
         gainNodeRef.current!.connect(audioContextRef.current.destination);
         
         console.log('Audio processing chain initialized');
+        return true;
       } catch (err) {
         console.error('Failed to create audio context:', err);
         toast({
@@ -197,8 +218,10 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
           description: "Your browser may not support advanced audio processing features.",
           variant: "destructive",
         });
+        return false;
       }
     }
+    return !!audioContextRef.current;
   };
 
   const updateAudioParameters = () => {
@@ -224,7 +247,14 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
   };
 
   const togglePlayback = () => {
-    if (!audioRef.current) return;
+    if (!audioRef.current) {
+      toast({
+        title: "Playback error",
+        description: "Audio element not available. Please try again later.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     // If we're already playing, stop
     if (isPlaying) {
@@ -234,9 +264,42 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       return;
     }
     
-    // Initialize audio context if not already done
-    if (!audioContextRef.current) {
-      initAudioContext();
+    // Handle known audio error with a helpful message
+    if (audioError) {
+      toast({
+        title: "Audio source unavailable",
+        description: "The audio file could not be loaded. This could be due to network issues or the audio file being unavailable.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Try to initialize audio context
+    const contextInitialized = initAudioContext();
+    if (!contextInitialized && !audioContextRef.current) {
+      // Fallback to basic playback without audio processing
+      try {
+        audioRef.current.currentTime = voice.startTime || 0;
+        audioRef.current.play().then(() => {
+          setIsPlaying(true);
+        }).catch(error => {
+          console.error("Error playing audio:", error);
+          toast({
+            title: "Playback error",
+            description: "Could not play the audio. The audio may be unavailable or your browser doesn't support this audio format.",
+            variant: "destructive",
+          });
+        });
+        return;
+      } catch (err) {
+        console.error("Error during fallback playback:", err);
+        toast({
+          title: "Playback failed",
+          description: "Could not play the audio segment. Please try again later.",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     
     // Set starting position
@@ -249,6 +312,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
       setIsPlaying(true);
     }).catch(error => {
       console.error("Error playing audio:", error);
+      setAudioError(true);
       toast({
         title: "Playback error",
         description: "Could not play the audio segment. The audio may be unavailable.",
@@ -285,6 +349,9 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
             ) : (
               <span>{voice.tag}</span>
             )}
+            {audioError && (
+              <AlertTriangle className="h-4 w-4 text-amber-500" title="Audio source unavailable" />
+            )}
           </div>
           
           <div className="flex items-center gap-1">
@@ -312,7 +379,7 @@ const VoiceTag: React.FC<VoiceTagProps> = ({ voice, onVoiceUpdate }) => {
               {isPlaying ? (
                 <Square className="h-4 w-4" />
               ) : (
-                <Play className="h-4 w-4" />
+                <Play className={`h-4 w-4 ${audioError ? "text-amber-500" : ""}`} />
               )}
             </Button>
 
