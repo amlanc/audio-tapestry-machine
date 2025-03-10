@@ -99,7 +99,6 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
     const startTime = Math.floor(Math.random() * (audioFile.duration / 2));
     const endTime = startTime + Math.floor(Math.random() * (audioFile.duration - startTime - 10)) + 10;
     
-    // Use the actual audio file URL for the voice preview
     const audioUrl = audioFile.url || '';
     
     const voiceCharacteristics: VoiceCharacteristics = {
@@ -117,7 +116,7 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
       tag: `Voice ${i + 1}`,
       color: voiceColors[i % voiceColors.length],
       volume: 1.0,
-      audioUrl, // Using the actual audio file URL
+      audioUrl,
       characteristics: voiceCharacteristics,
     };
     
@@ -132,7 +131,12 @@ export const analyzeAudioForVoices = async (audioFile: AudioFile): Promise<Voice
         color: mockVoice.color,
         volume: mockVoice.volume,
         audio_url: mockVoice.audioUrl,
-        characteristics: voiceCharacteristics as any // Type casting to satisfy Supabase
+        characteristics: {
+          pitch: voiceCharacteristics.pitch,
+          tone: voiceCharacteristics.tone,
+          speed: voiceCharacteristics.speed,
+          clarity: voiceCharacteristics.clarity,
+        }
       })
       .select()
       .single();
@@ -317,9 +321,7 @@ export const mixVoices = async (
 };
 
 // Save voice characteristics (real implementation with Supabase)
-export const saveVoiceCharacteristics = async (
-  voice: Voice
-): Promise<boolean> => {
+export const saveVoiceCharacteristics = async (voice: Voice): Promise<boolean> => {
   console.log(`Saving voice characteristics for voice ID ${voice.id}:`, voice.characteristics);
   
   try {
@@ -327,7 +329,12 @@ export const saveVoiceCharacteristics = async (
       .from('voices')
       .update({
         tag: voice.tag,
-        characteristics: voice.characteristics,
+        characteristics: {
+          pitch: voice.characteristics.pitch,
+          tone: voice.characteristics.tone,
+          speed: voice.characteristics.speed,
+          clarity: voice.characteristics.clarity,
+        },
         volume: voice.volume,
         updated_at: new Date().toISOString()
       })

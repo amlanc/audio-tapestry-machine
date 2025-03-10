@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Header from '@/components/Header';
@@ -25,22 +24,18 @@ const Index = () => {
   const youtubeInputRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
-  // Handle audio file upload or extraction with automatic analysis
   const handleAudioFile = async (file: AudioFile) => {
     setAudioFile(file);
     setVoices([]);
     setCurrentTime(0);
     
-    // Automatically trigger voice analysis
     await analyzeVoices(file);
   };
 
-  // Voice analysis function
   const analyzeVoices = async (file: AudioFile) => {
     try {
       setIsAnalyzing(true);
       
-      // Check if we already have analyzed voices for this audio file in Supabase
       const { data: existingVoices, error: fetchError } = await supabase
         .from('voices')
         .select('*')
@@ -54,7 +49,6 @@ const Index = () => {
       let detectedVoices: Voice[];
       
       if (existingVoices && existingVoices.length > 0) {
-        // Use existing voices from the database
         detectedVoices = existingVoices.map(v => ({
           id: v.id,
           audioId: v.audio_id,
@@ -72,7 +66,6 @@ const Index = () => {
           description: `Found ${detectedVoices.length} previously analyzed voices`,
         });
       } else {
-        // Analyze the audio file for voices
         detectedVoices = await analyzeAudioForVoices(file);
         
         toast({
@@ -94,17 +87,14 @@ const Index = () => {
     }
   };
 
-  // Handle voice update (tag, characteristics, etc.)
   const handleVoiceUpdate = async (updatedVoice: Voice) => {
     try {
-      // Update voice in state
       setVoices(prev => 
         prev.map(voice => 
           voice.id === updatedVoice.id ? updatedVoice : voice
         )
       );
       
-      // Save voice characteristics to database
       await saveVoiceCharacteristics(updatedVoice);
     } catch (error) {
       console.error('Error updating voice:', error);
@@ -116,7 +106,6 @@ const Index = () => {
     }
   };
 
-  // Auto-increment current time for demo purposes
   useEffect(() => {
     if (!audioFile) return;
     
@@ -132,16 +121,13 @@ const Index = () => {
     return () => clearInterval(interval);
   }, [audioFile]);
 
-  // Check for source query parameter
   useEffect(() => {
     const searchParams = new URLSearchParams(location.search);
     const source = searchParams.get('source');
     
     if (source === 'youtube' && youtubeInputRef.current) {
-      // Scroll to YouTube input
       youtubeInputRef.current.scrollIntoView({ behavior: 'smooth' });
       
-      // Add subtle highlight animation
       youtubeInputRef.current.classList.add('highlight-pulse');
       setTimeout(() => {
         youtubeInputRef.current?.classList.remove('highlight-pulse');
