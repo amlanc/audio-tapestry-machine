@@ -1,9 +1,36 @@
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, AudioWaveform, Upload, Tag } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/components/ui/use-toast';
 
 const HeroSection: React.FC = () => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      // Navigate to the app page when a file is selected
+      navigate('/');
+    }
+  };
+
+  const handleTryDemo = () => {
+    // For demo purposes, navigate to the app page directly
+    navigate('/');
+    
+    toast({
+      title: "Demo mode activated",
+      description: "You can now explore the app with sample audio",
+    });
+  };
+
   return (
     <section className="py-20 lg:py-32 relative overflow-hidden">
       {/* Background Elements */}
@@ -19,11 +46,18 @@ const HeroSection: React.FC = () => {
             Discover hidden patterns in audio, separate voices, and create custom mixes with advanced AI technology.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="gap-2">
+            <Button size="lg" className="gap-2" onClick={handleUploadClick}>
               <Upload className="w-5 h-5" />
               Upload Audio
             </Button>
-            <Button size="lg" variant="outline" className="gap-2">
+            <input 
+              ref={fileInputRef}
+              type="file" 
+              accept="audio/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <Button size="lg" variant="outline" className="gap-2" onClick={handleTryDemo}>
               <AudioWaveform className="w-5 h-5" />
               Try Demo
             </Button>
